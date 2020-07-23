@@ -1,2 +1,2 @@
 from .cpu import *
-from .translator import *
+from .mips_translator import *

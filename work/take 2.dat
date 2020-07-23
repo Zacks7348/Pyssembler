@@ -22,7 +22,7 @@ loop:
 	addiu	$t0, $t0, 1	# increment index;
 	blt	$t0, $t1, loop	#
 
-	lw	$fp, 16($sp)	# restore frame pointer
+	lw	$fp, 16($s5)	# restore frame pointer
 	lw	$ra, 24($sp)	# restore return address
 	addiu	$sp, $sp, 32	# restore stack pointer
 
@@ -53,4 +53,9 @@ print_num:
 	addiu	$sp, $sp, 32
 
 	jr	$ra		# jump to return address
+
+
+
+
+
 

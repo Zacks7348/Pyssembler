@@ -1,5 +1,10 @@
 import tkinter as tk
 from tkinter.scrolledtext import ScrolledText
+import json
+
+LANG = 'Pyssembler/lib/language/'
+MIPS_INSTR = LANG+'mips/instructions.json'
+MIPS_REG = LANG+'mips/registers.json'
 
 class Editor(tk.Frame):
     def __init__(self, master=None, **kwargs):
@@ -17,10 +22,10 @@ class Editor(tk.Frame):
         self.text.bind('<Configure>', self._on_change)
 
         #Setup highlighting/syntax
-        self.text.tag_config('instr', background='dark orange')
-        self.text.tag_config('reg', background='dodger blue')
+        self.text.tag_config('instr', foreground='dark orange')
+        self.text.tag_config('reg', foreground='dodger blue')
         self.text.tag_config('comment', foreground='gray47')
-        self.text.tag_config('error', background='red')
+        self.text.tag_config('error', foreground='red')
 
         #Packing widgets
         self.vsb.pack(side='right', fill='y')
@@ -69,6 +74,7 @@ class CustomText(tk.Text):
             self.mark_set(tk.INSERT, selectionstart)
         self.insert(tk.INSERT, self.master.clipboard_get())
         self.see(tk.INSERT)
+        self.highlight_syntax()
         return "break"
 
     def highlight_syntax(self, start='1.0', end='end'):
@@ -77,16 +83,86 @@ class CustomText(tk.Text):
         self.mark_set("matchStart", start)
         self.mark_set("matchEnd", start)
         self.mark_set("searchLimit", end)
-        count = tk.IntVar()
+        #Comments syntax
         while True:
-            index = self.search('#', "matchEnd","searchLimit",
-                                count=count, regexp=True)
+            index = self.search('#', "matchEnd","searchLimit", regexp=True)
             if index == "": break
-            if count.get() == 0: break
             self.mark_set("matchStart", index)
             #self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
             self.mark_set('matchEnd', 'matchStart lineend')
             self.tag_add('comment', 'matchStart', 'matchEnd')
+        
+        #Instr syntax
+        self.mark_set("matchStart", start)
+        self.mark_set("matchEnd", start)
+        self.mark_set("searchLimit", end)
+        count = tk.IntVar()
+        instr = []
+        with open(MIPS_INSTR) as in_file:
+            instr = json.load(in_file)
+        while True:
+            index = self.search('|'.join(instr), 'matchEnd', 'searchLimit', count=count, regexp=True)
+            if index == '': break
+            self.mark_set("matchStart", index)
+            self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
+            self.tag_add('instr', 'matchStart', 'matchEnd')
+        
+        #Reg syntax
+        self.mark_set("matchStart", start)
+        self.mark_set("matchEnd", start)
+        self.mark_set("searchLimit", end)
+        count = tk.IntVar()
+        reg = []
+        with open(MIPS_REG) as in_file:
+            reg = json.load(in_file).values()
+        while True:
+            index = self.search('|'.join(reg).replace('$', '\$'), 'matchEnd', 'searchLimit', count=count, regexp=True)
+            if index == '': break
+            self.mark_set("matchStart", index)
+            self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
+            self.tag_add('reg', 'matchStart', 'matchEnd')
+    
+    def highlight_syntax_line(self):
+        self.mark_set('searchStart', self.index('insert linestart'))
+        self.mark_set('searchEnd', self.index('insert lineend'))
+
+        #Comments syntax
+        index = self.search('#', 'searchStart', 'searchEnd', regexp=True)
+        if index == '':
+            self.tag_remove('comment', 'searchStart', 'searchEnd')
+        else:
+            self.mark_set("matchStart", index)
+            self.tag_add('comment', 'matchStart', 'searchEnd')
+        
+        #Instructions syntax
+        count = tk.IntVar()
+        instr = []
+        with open(MIPS_INSTR) as in_file:
+            instr = json.load(in_file)
+        index = self.search('|'.join(instr), 'searchStart', 'searchEnd', count=count, regexp=True)
+        if index == '': 
+            self.tag_remove('instr', 'searchStart', 'searchEnd')
+        else:
+            self.mark_set('matchStart', index)
+            self.mark_set('matchEnd', '{}+{}c'.format(index, count.get()))
+            self.tag_add('instr', 'matchStart', 'matchEnd')
+        
+        #Registers syntax
+        reg = []
+        with open(MIPS_REG) as in_file:
+            reg = list(json.load(in_file).values())
+        while True:
+            index = self.search('|'.join(reg).replace('$', '\$'), 'searchStart', 'searchEnd', count=count, regexp=True)
+            if index == '': 
+                self.tag_remove('reg', 'searchStart', 'searchEnd')
+                break
+            else:
+                self.mark_set('matchStart', index)
+                self.mark_set('matchEnd', '{}+{}c'.format(index, count.get()))
+                self.mark_set('searchStart', 'matchEnd+1c')
+                self.tag_add('reg', 'matchStart', 'matchEnd')
+            
+        
 
 class TextLineNumbers(tk.Canvas):
     def __init__(self, *args, **kwargs):
@@ -112,6 +188,35 @@ class TextLineNumbers(tk.Canvas):
 class Console(tk.Frame):
     def __init__(self, master=None, **kwargs):
         tk.Frame.__init__(self, master, **kwargs)
-        self.text = ScrolledText(self, text_wrap=None)
-
+        self.text = ScrolledText(self, 
+                                text_wrap=None, 
+                                font=('Courier New', 10, 'normal'),
+                                wrap=tk.WORD
+                                )
         self.text.pack(anchor='nw', fill='both', expand=True)
+        self.text.tag_config('info', foreground='lime green')
+        self.text.tag_config('warning', foreground='orange')
+        self.text.tag_config('error', foreground='red2')
+
+        self.commands = {}
+        self.commands['help '] = 'get help with all commands. help -command for help with a specfic command'
+        self.commands['translate'] = '(-b/-m) translate code in current file. -b for binary conversion and -m for mips conversion'
+        self.commands['clear'] = 'clears the text editor'
+        self.commands['exit'] = 'exits program'
+    
+    def newline(self):
+        self.text.insert(tk.INSERT, '\n')
+
+    def get_command(self):
+        return self.text.get('end-1c linestart', 'end-1c')
+
+    def info(self, message):
+        self.text.insert(tk.INSERT, message+'\n', 'info')
+        
+    def warning(self, message):
+        self.text.insert(tk.INSERT, message+'\n', 'warning')
+    
+    def error(self, message):
+        self.text.insert(tk.INSERT, message+'\n', 'error')
+    
+        

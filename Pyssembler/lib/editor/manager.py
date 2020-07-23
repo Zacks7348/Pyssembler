@@ -2,6 +2,8 @@ from enum import Enum
 import logging
 import os
 
+from Pyssembler.environment.mips_translator import mips_to_binary
+
 log = logging.getLogger(__name__)
 
 class State(Enum):
@@ -25,8 +27,8 @@ class Manager():
     def exit(self):
         self.root.destroy()
     
-    def highlight_syntax(self):
-        self.app.editor.highlight_syntax()
+    def highlight_syntax(self, line=True):
+        self.app.syntax_editor(line)
 
     def change_title(self, title):
         self.root.title(title)
@@ -36,8 +38,10 @@ class Manager():
             self.change_state(State.UNSAVED)
         self.app.syntax_editor()
     
-    def clear_editor(self):
+    def clear_editor(self, unsave=False):
         self.app.clear_editor()
+        if unsave:
+            self.change_state(State.UNSAVED)
     
     def set_state_home(self):
         self.change_state(State.HOME)
@@ -74,6 +78,7 @@ class Manager():
                 out.write(self.app.get_text_editor())
             log.info('Saved file: '+self.file_dir)
             self.change_state(State.SAVED)
+            self.highlight_syntax(line=False)
             return True
         except:
             log.info('Could not save file')
@@ -88,6 +93,7 @@ class Manager():
             self.change_title(self.TITLE.format(self.file_dir))
             self.change_state(State.SAVED)
             log.debug('Created new file: '+self.file_dir)
+            self.app.clear_editor()
             return True
         except:
             return False
@@ -105,7 +111,7 @@ class Manager():
                 self.file_name = os.path.basename(self.file_dir)
                 self.change_title(self.TITLE.format(self.file_dir))
                 log.info('Opened file!')
-                self.highlight_syntax()
+                self.highlight_syntax(line=False)
         except:
             return False
     
@@ -118,7 +124,22 @@ class Manager():
         self.change_state(State.HOME)
         log.info('Closed file!')
 
-    
+    def mips_to_binary(self):
+        self.app.console.info('Translating mips...')
+        code = self.app.get_text_editor().splitlines()
+        code = mips_to_binary(code)
+        if code[1]:
+            self.app.console.info('Successfully translated mips to binary!')
+            return code[0]
+        else:
+            self.app.console.error(str(code[0]))
+            return None
+          
     @property
     def saved(self):
         return self.state == State.SAVED or self.state == State.HOME
+    
+    @property
+    def is_home(self):
+        return self.state == State.HOME
+    

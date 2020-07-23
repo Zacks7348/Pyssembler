@@ -1,6 +1,7 @@
 import tkinter as tk
 import tkinter.filedialog as filedialog
 import tkinter.messagebox as messagebox
+from tkinter.scrolledtext import ScrolledText
 import os
 
 class MainMenu(tk.Menu):
@@ -82,6 +83,7 @@ class FileMenu(tk.Menu):
                 )
         if file_dir != "":
             self.manager.create_file(file_dir)
+            
     
     def on_open_file(self):
         if not self.manager.saved:
@@ -108,14 +110,28 @@ class EditMenu(tk.Menu):
     def __init__(self, master, manager):
         super().__init__(master=None, tearoff=False)
         self.manager = manager
-        self.add_command(label='Clear')
+        self.add_command(label='Clear', command=self.on_clear)
+    
+    def on_clear(self):
+        self.manager.clear_editor(unsave=True)
 
 class TranslateMenu(tk.Menu):
     def __init__(self, master, manager):
         super().__init__(master=None, tearoff=False)
         self.manager = manager
-        self.add_command(label="To Binary")
+        self.add_command(label="To Binary", command=self.on_to_binary)
         self.add_command(label="From Binary")
+    
+    def on_to_binary(self):
+        output = self.manager.mips_to_binary()
+        if not output is None:
+            top = tk.Toplevel()
+            top.title('Translation')
+            msg = ScrolledText(top)
+            msg.insert(tk.INSERT, '\n'.join(output))
+            msg.pack()
+            button = tk.Button(top, text='Ok', command=top.destroy)
+            button.pack()
 
 class ViewMenu(tk.Menu):
     def __init__(self, master, manager):

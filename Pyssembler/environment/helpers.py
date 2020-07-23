@@ -35,7 +35,7 @@ def invert(binary):
             output += "0"
     return output
 
-def clean_code(code):
+def clean_code_old(code):
     output = []
     for line in code:
         if line == '':
@@ -46,3 +46,29 @@ def clean_code(code):
             elif not line.isspace():
                 output.append(line.lstrip(' '))
     return output
+
+def clean_code(code):
+    output = []
+    cnt = 1
+    to_add = ''
+    for line in code:
+        line = line.strip()
+        if line.endswith(':'):
+            to_add = line+' '
+            cnt += 1
+            continue
+        if line == '':
+            cnt += 1
+            continue
+        elif not line.startswith('#'):
+            if '#' in line:
+                to_add += line.split('#', 1)[0]
+            else:
+                to_add += line
+        output.append((to_add, cnt))
+        to_add = ''
+        cnt += 1 
+    return output
+
+
+

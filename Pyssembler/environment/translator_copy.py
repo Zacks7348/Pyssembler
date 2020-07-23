@@ -1,14 +1,16 @@
+# pylint: disable=E1101
+
 import json
 import logging
 
 from Pyssembler.environment.helpers import integer, binary, clean_code
-from Pyssembler.settings import Settings
+from Pyssembler.config import Config
 from Pyssembler.errors import *
 
 log = logging.getLogger(__name__)
 
-REGISTERS = "Pyssembler/environment/registers.json"
-TEMPLATES = "Pyssembler/environment/instructions.json"
+REGISTERS = "Pyssembler/lib/language/mips/registers.json"
+TEMPLATES = "Pyssembler/lib/language/mips/encodings.json"
 
 #
 # INSTRUCTIONS CATEGORIZED BY ENCODING
@@ -34,7 +36,7 @@ INSTR_015 = ['sll', 'sra', 'srl']
 BRANCHES = ['000100', '000001', '000111', '000110', '000101']
 JUMPS = ['000010', '000011']
 
-def __open_instruction(key):
+def __open_encodings(key):
     with open(TEMPLATES, "r") as output:
         return json.load(output)[key]
 
@@ -43,7 +45,7 @@ def __open_reg():
         return json.load(output)
 
 def verify_binary(line, line_num, length):
-    opcodes = __open_instruction("OPCODES")
+    opcodes = __open_encodings("OPCODES")
     if len(line) != 32:
         raise InvalidSizeError(line, line_num)
     if line[:6] not in opcodes.keys():
@@ -82,10 +84,8 @@ def mips_to_binary(code):
     """
 
     log.debug("Preparing translation: MIPS -> Binary...")
-    code = clean_code(code)
-    print(code)
     REG = {value: key for key, value in __open_reg().items()}
-    BINS = __open_instruction("BINS")
+    BINS = __open_encodings("BINS")
     result = []
 
     log.debug("Locating labels...")
@@ -168,13 +168,13 @@ def binary_to_mips(code):
     log.debug("Preparing translation: Binary -> MIPS")
     code = clean_code(code)
     REG = __open_reg()
-    OPCODE = __open_instruction("OPCODES")
+    OPCODE = __open_encodings("OPCODES")
     result = []
 
     log.debug("Generating labels...")
     labels={}
     label_cnt = 1
-    label_name = Settings().translator_config["label-name"]
+    label_name = Config().translator_config["label-name"]
     cnt = 0
     for line in code:
         if line[:6] in BRANCHES:
@@ -232,5 +232,3 @@ def binary_to_mips(code):
         result[key] = "{}: {}".format(value, result[key])
     log.debug("Inserted labels!")
     return result
-        
-    
