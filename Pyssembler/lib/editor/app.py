@@ -24,6 +24,7 @@ class App():
 
         #Bindings
         self.editor.text.bind('<KeyRelease>', self.manager.on_editor_update)
+        self.editor.text.bind('<Control-s>', self.menu.file_menu.on_save)
         self.console.text.bind('<Return>', self.on_command)
         self.root.protocol('WM_DELETE_WINDOW', self.menu.file_menu.on_exit)
 

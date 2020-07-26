@@ -57,6 +57,40 @@ def mips_to_binary(code):
     BINS = __open_encodings("BINS")
     result = []
 
+    log.debug('Expanding psuedo-instructions...')
+    cnt = 0
+    while cnt < len(code):
+        line = line = code[cnt][0]
+        mips = line.split()
+        if ':' in mips[0]:
+            mips.pop(0)
+        instr = mips[0]
+        if instr in INSTR_PSUEDO:
+            if instr == 'move':
+                code[cnt] = ('or {}, {}, $zero'.format(mips[1], mips[2]), None)
+            elif instr == 'clear':
+                code[cnt] = ('or {}, $zero, $zero'.format(mips[1]), None)
+            elif instr == 'li':
+                code[cnt] = ('ori {}, $zero, {}'.format(mips[1], mips[2]), None)
+            elif instr == 'b':
+                code[cnt] = ('beq $zero, $zero, {}'.format(mips[1]), None)
+            elif instr == 'bal':
+                code[cnt] = ('bgezal $zero, {}'.format(mips[1]), None)
+            elif instr == 'bgt':
+                code[cnt] = ('slt $at, {}, {}'.format(mips[2], mips[1]), None)
+                code.insert(cnt+1, ('bne $at, $zero, {}'.format(mips[3]), None))
+            elif instr == 'blt':
+                code[cnt] = ('slt $at, {}, {}'.format(mips[1], mips[2]), None)
+                code.insert(cnt+1, ('bne $at, $zero, {}'.format(mips[3]), None))
+            elif instr == 'bge':
+                code[cnt] = ('slt $at, {}, {}'.format(mips[1], mips[2]), None)
+                code.insert(cnt+1, ('beq $at, $zero, {}'.format(mips[3]), None))
+            elif instr == 'ble':
+                code[cnt] = ('slt $at, {}, {}'.format(mips[2], mips[1]), None)
+                code.insert(cnt+1, ('beq $at, $zero, {}'.format(mips[3]), None))
+        cnt += 1
+    log.debug('Expanded psuedo-instructions!')
+
     log.debug('Locating labels...')
     labels = {}
     cnt = 0
@@ -66,10 +100,6 @@ def mips_to_binary(code):
             labels[line.split()[0].replace(':', '')] = cnt
         cnt += 1
     log.debug("Found {} data labels!".format(len(labels.keys())))
-
-    log.debug("Validating MIPS instructions...")
-    #TODO: validate each instruction, raise exception on error
-    log.debug("Validated MIPS instructions!")
 
     log.debug("Preparations complete! Starting line-by-line translations...")
     cnt = 0
@@ -116,8 +146,12 @@ def mips_to_binary(code):
                 offset = labels.get(mips[len(mips)-1])
                 if offset is None:
                     raise InvalidLabelError(line, code[cnt][1], mips[len(mips)-1])
-                offset -= 1
+                sub_one = cnt < offset
+                offset = offset - cnt
+                if sub_one:
+                    offset -= 1
                 i_16 = binary(offset, 16)
+                print(offset)
 
             elif instr in INSTR_J:
                 target = labels.get(mips[1])
@@ -167,31 +201,6 @@ def mips_to_binary(code):
                     raise InvalidRegisterError(line, code[cnt][1], mips[2])
                 i_5 = binary(mips[3], 5)
             
-            elif instr in INSTR_PSUEDO:
-                if instr == 'move':
-                    code[cnt] = ('or {}, {}, $zero'.format(mips[1], mips[2]), None)
-                elif instr == 'clear':
-                    code[cnt] = ('or {}, $zero, $zero'.format(mips[1]), None)
-                elif instr == 'li':
-                    code[cnt] = ('ori {}, $zero, {}'.format(mips[1], mips[2]), None)
-                elif instr == 'b':
-                    code[cnt] = ('beq $zero, $zero, {}'.format(mips[1]), None)
-                elif instr == 'bal':
-                    code[cnt] = ('bgezal $zero, {}'.format(mips[1]), None)
-                elif instr == 'bgt':
-                    code[cnt] = ('slt $at, {}, {}'.format(mips[2], mips[1]), None)
-                    code.insert(cnt+1, ('bne $at, $zero, {}'.format(mips[3]), None))
-                elif instr == 'blt':
-                    code[cnt] = ('slt $at, {}, {}'.format(mips[1], mips[2]), None)
-                    code.insert(cnt+1, ('bne $at, $zero, {}'.format(mips[3]), None))
-                elif instr == 'bge':
-                    code[cnt] = ('slt $at, {}, {}'.format(mips[1], mips[2]), None)
-                    code.insert(cnt+1, ('beq $at, $zero, {}'.format(mips[3]), None))
-                elif instr == 'ble':
-                    code[cnt] = ('slt $at, {}, {}'.format(mips[2], mips[1]), None)
-                    code.insert(cnt+1, ('beq $at, $zero, {}'.format(mips[3]), None))
-                continue
-            
             else:
                 raise InvalidInstructionError(code[cnt][0], code[cnt][1], instr)
         except InvalidMIPSInstructionError as e:
@@ -203,3 +212,4 @@ def mips_to_binary(code):
         cnt += 1
     log.debug("Completed line-by-line translations!")
     return (result, True)
+

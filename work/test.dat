@@ -54,3 +54,6 @@ print_num:
 
 	jr	$ra		# jump to return address
 
+
+
+

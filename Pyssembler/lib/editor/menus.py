@@ -48,6 +48,8 @@ class FileMenu(tk.Menu):
         return option
     
     def on_save(self, title='Save'):
+        if self.manager.is_home:
+            return
         if self.manager.file_name is None:
             self.on_save_as()
             return
@@ -129,6 +131,7 @@ class TranslateMenu(tk.Menu):
             top.title('Translation')
             msg = ScrolledText(top)
             msg.insert(tk.INSERT, '\n'.join(output))
+            msg.configure(state='disabled')
             msg.pack()
             button = tk.Button(top, text='Ok', command=top.destroy)
             button.pack()
