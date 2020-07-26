@@ -1,3 +1,0 @@
-help
-translate (-m, -b)
-clear
