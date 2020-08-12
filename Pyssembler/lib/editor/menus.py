@@ -4,6 +4,8 @@ import tkinter.messagebox as messagebox
 from tkinter.scrolledtext import ScrolledText
 import os
 
+from Pyssembler.lib.editor.frames import SettingsWindow
+
 class MainMenu(tk.Menu):
     def __init__(self, master, manager):
         super().__init__(master=None, tearoff=False)
@@ -34,7 +36,7 @@ class FileMenu(tk.Menu):
         self.add_separator()
         self.add_command(label="Exit", command=self.on_exit)
         self.add_separator()
-        self.add_command(label="Settings")
+        self.add_command(label="Settings", command=self.on_settings)
 
     def prompt_save(self, title='Save', message='Do you want to save?'):
         if self.manager.file_dir is None:
@@ -107,6 +109,8 @@ class FileMenu(tk.Menu):
                 return
         self.manager.close_file()
 
+    def on_settings(self):
+        SettingsWindow(self.manager)
 
 class EditMenu(tk.Menu):
     def __init__(self, master, manager):
@@ -129,12 +133,13 @@ class TranslateMenu(tk.Menu):
         if not output is None:
             top = tk.Toplevel()
             top.title('Translation')
-            msg = ScrolledText(top)
+            msg = ScrolledText(top, width=40)
             msg.insert(tk.INSERT, '\n'.join(output))
             msg.configure(state='disabled')
             msg.pack()
             button = tk.Button(top, text='Ok', command=top.destroy)
             button.pack()
+            top.grab_set()
 
 class ViewMenu(tk.Menu):
     def __init__(self, master, manager):

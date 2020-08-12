@@ -4,13 +4,12 @@ import json
 import logging
 
 from Pyssembler.environment.helpers import integer, binary, clean_code
-from Pyssembler.config import Config
 from Pyssembler.errors import *
 
 log = logging.getLogger(__name__)
 
-REGISTERS = "Pyssembler/lib/language/mips/registers.json"
-TEMPLATES = "Pyssembler/lib/language/mips/encodings.json"
+REGISTERS = "Pyssembler/lib/language/registers.json"
+TEMPLATES = "Pyssembler/lib/language/encodings.json"
 
 #
 # INSTRUCTIONS CATEGORIZED BY ENCODING

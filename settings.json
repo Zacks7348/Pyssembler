@@ -1,0 +1,10 @@
+{
+    "editor-settings": {
+        "font": "Courier",
+        "font-size": 14,
+        "highlight-syntax": true
+    },
+    "translator-settings": {
+        "label-name": "label"
+    }
+}

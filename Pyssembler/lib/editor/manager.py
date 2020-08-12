@@ -123,6 +123,10 @@ class Manager():
         self.app.clear_editor()
         self.change_state(State.HOME)
         log.info('Closed file!')
+    
+    def update_settings(self, settings):
+        editor = settings['editor-settings']
+        self.app.editor.text.configure(font=(editor['font'], editor['font-size'], 'normal'))
 
     def mips_to_binary(self):
         self.app.console.info('Translating mips...')
