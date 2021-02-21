@@ -2,9 +2,11 @@ import tkinter as tk
 import tkinter.filedialog as filedialog
 import tkinter.messagebox as messagebox
 from tkinter.scrolledtext import ScrolledText
+
 import os
 
 from Pyssembler.lib.editor.frames import SettingsWindow
+
 
 class MainMenu(tk.Menu):
     def __init__(self, master, manager):
@@ -17,11 +19,12 @@ class MainMenu(tk.Menu):
         self.translate_menu = TranslateMenu(master, manager)
         self.view_menu = ViewMenu(master, manager)
 
-        self.add_cascade(label='File', menu=self.file_menu)
-        self.add_cascade(label='Edit', menu=self.edit_menu)
-        self.add_cascade(label='Translate', menu=self.translate_menu)
-        self.add_command(label='Simulate')
-        self.add_cascade(label='View', menu=self.view_menu)
+        self.add_cascade(label="File", menu=self.file_menu)
+        self.add_cascade(label="Edit", menu=self.edit_menu)
+        self.add_cascade(label="Translate", menu=self.translate_menu)
+        self.add_command(label="Simulate")
+        self.add_cascade(label="View", menu=self.view_menu)
+
 
 class FileMenu(tk.Menu):
     def __init__(self, master, manager):
@@ -38,34 +41,37 @@ class FileMenu(tk.Menu):
         self.add_separator()
         self.add_command(label="Settings", command=self.on_settings)
 
-    def prompt_save(self, title='Save', message='Do you want to save?'):
+    def prompt_save(self, title="Save", message="Do you want to save?"):
         if self.manager.file_dir is None:
             return False
-        option = tk.messagebox.askyesnocancel(
-                title=title,
-                message=message   
-                )
+        option = tk.messagebox.askyesnocancel(title=title, message=message)
         if option:
             self.on_save()
         return option
-    
-    def on_save(self, title='Save'):
+
+    def on_save(self, title="Save"):
         if self.manager.is_home:
             return
         if self.manager.file_name is None:
             self.on_save_as()
             return
         if self.manager.save():
-            messagebox.showinfo("Save", "Successfully saved "+self.manager.file_name)
+            messagebox.showinfo("Save", "Successfully saved " + self.manager.file_name)
         else:
-            messagebox.showerror("Save As", "Could not save "+str(self.manager.file_name))
+            messagebox.showerror(
+                "Save As", "Could not save " + str(self.manager.file_name)
+            )
 
-    def on_save_as(self, title='Save As'):
+    def on_save_as(self, title="Save As"):
         self.on_new_file(title=title)
         if self.manager.save():
-            messagebox.showinfo("Save As", "Successfully saved "+self.manager.file_name)
+            messagebox.showinfo(
+                "Save As", "Successfully saved " + self.manager.file_name
+            )
         else:
-            messagebox.showerror("Save As", "Could not save "+str(self.manager.file_name))
+            messagebox.showerror(
+                "Save As", "Could not save " + str(self.manager.file_name)
+            )
 
     def on_exit(self):
         if not self.manager.saved:
@@ -73,38 +79,37 @@ class FileMenu(tk.Menu):
             if option is None:
                 return
         self.manager.exit()
-    
-    def on_new_file(self, title='New File'):
+
+    def on_new_file(self, title="New File"):
         if not self.manager.saved:
             option = self.prompt_save()
             if option is None:
                 return
         file_dir = filedialog.asksaveasfilename(
-                initialdir=os.getcwd()+'/work',
-                title=title,
-                filetypes=(("dat files", "*.dat"),("all files", "*.*")),
-                defaultextension="*.dat"
-                )
+            initialdir=os.getcwd() + "/work",
+            title=title,
+            filetypes=(("asm files", "*.asm"), ("all files", "*.*")),
+            defaultextension="*.dat",
+        )
         if file_dir != "":
             self.manager.create_file(file_dir)
-            
-    
+
     def on_open_file(self):
         if not self.manager.saved:
             option = self.prompt_save()
             if option is None:
                 return
         directory = filedialog.askopenfilename(
-                initialdir=os.getcwd()+'/work',
-                title="Open File",
-                filetypes=(("dat files", "*.dat"),("all files", "*.*")),
-                defaultextension="*.dat"
-                )
+            initialdir=os.getcwd() + "/work",
+            title="Open File",
+            filetypes=(("asm files", "*.asm"), ("all files", "*.*")),
+            defaultextension="*.dat",
+        )
         self.manager.open_file(directory)
 
     def on_close_file(self):
         if not self.manager.saved:
-            option = self.prompt_save(title='Close File')
+            option = self.prompt_save(title="Close File")
             if option is None:
                 return
         self.manager.close_file()
@@ -112,37 +117,45 @@ class FileMenu(tk.Menu):
     def on_settings(self):
         SettingsWindow(self.manager)
 
+
 class EditMenu(tk.Menu):
     def __init__(self, master, manager):
         super().__init__(master=None, tearoff=False)
         self.manager = manager
-        self.add_command(label='Clear', command=self.on_clear)
-    
+        self.add_command(label="Clear", command=self.on_clear)
+
     def on_clear(self):
         self.manager.clear_editor(unsave=True)
+
 
 class TranslateMenu(tk.Menu):
     def __init__(self, master, manager):
         super().__init__(master=None, tearoff=False)
         self.manager = manager
-        self.add_command(label="To Binary", command=self.on_to_binary)
-        self.add_command(label="From Binary")
-    
-    def on_to_binary(self):
-        output = self.manager.mips_to_binary()
+        self.add_command(label="To Binary", command=lambda: self.on_translate("bin"))
+        self.add_command(label="To Hex", command=lambda: self.on_translate("hex"))
+
+    def on_translate(self, mode):
+        """
+        if mode is 'bin':
+            output = self.manager.mips_to_binary()
+        elif mode is 'hex':
+            output = self.manager.mips_to_hex()
+        """
+        output = self.manager.translate(mode)
         if not output is None:
             top = tk.Toplevel()
-            top.title('Translation')
+            top.title("Translation")
             msg = ScrolledText(top, width=40)
-            msg.insert(tk.INSERT, '\n'.join(output))
-            msg.configure(state='disabled')
+            msg.insert(tk.INSERT, "\n".join(output))
+            msg.configure(state="disabled")
             msg.pack()
-            button = tk.Button(top, text='Ok', command=top.destroy)
+            button = tk.Button(top, text="Ok", command=top.destroy)
             button.pack()
             top.grab_set()
+
 
 class ViewMenu(tk.Menu):
     def __init__(self, master, manager):
         super().__init__(master=None, tearoff=False)
         self.manager = manager
-

@@ -3,7 +3,7 @@ import logging
 from Pyssembler import run
 
 log = logging.getLogger("Pyssembler")
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.CRITICAL)
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter('%(levelname)s:%(name)s: %(message)s'))
 log.addHandler(handler)

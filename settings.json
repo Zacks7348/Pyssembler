@@ -1,10 +1,10 @@
 {
     "editor-settings": {
         "font": "Courier",
-        "font-size": 14,
+        "font-size": 23,
         "highlight-syntax": true
     },
-    "translator-settings": {
-        "label-name": "label"
+    "simulator-settings": {
+        "value-radix": "hex"
     }
 }
