@@ -17,9 +17,9 @@ class Editor(tk.Frame):
     def __init__(self, master=None, manager=None, **kwargs):
         tk.Frame.__init__(self, master, **kwargs)
         settings = Settings().editor
-        font = (settings["font"], settings["font-size"], "normal")
+        font_settings = (settings["font"], settings["font-size"], "normal")
 
-        self.text = CustomText(self, font=font, wrap=tk.NONE)
+        self.text = CustomText(self, font=font_settings, wrap=tk.NONE)
         self.vsb = tk.Scrollbar(self, orient="vertical", command=self.text.yview)
         self.hsb = tk.Scrollbar(self, orient="horizontal", command=self.text.xview)
         self.text.configure(yscrollcommand=self.vsb.set)
@@ -49,9 +49,9 @@ class Editor(tk.Frame):
 
     def update_settings(self, settings):
         editor = settings["editor-settings"]
-        font = (editor["font"], editor["font-size"], "normal")
-        self.text.configure(font=font)
-        self.linenumbers.font = font
+        font_settings = (editor["font"], editor["font-size"], "normal")
+        self.text.configure(font=font_settings)
+        self.linenumbers.font = ('Courier', font_settings[1], font_settings[2])
         self.linenumbers.redraw()
 
 
@@ -104,74 +104,37 @@ class CustomText(tk.Text):
         self.tag_remove("instr", start, end)
         self.tag_remove("reg", start, end)
 
-    def highlight_syntax(self, start="1.0", end="end"):
-        start = self.index(start)
-        end = self.index(end)
+    def highlight_syntax(self):
+        start = '1.0'
+        end = self.index('end')
         self.mark_set("matchStart", start)
         self.mark_set("matchEnd", start)
         self.mark_set("searchLimit", end)
-        # Comments syntax
-        while True:
-            index = self.search("#", "matchEnd", "searchLimit", regexp=True)
-            if index == "":
-                break
-            self.mark_set("matchStart", index)
-            self.mark_set("matchEnd", "matchStart lineend")
-            self.tag_add("comment", "matchStart", "matchEnd")
+        for i in range(1, int(float(end))+1):
+            searchStart = self.index('{}.0'.format(i))
+            searchEnd = self.index('{} lineend'.format(searchStart))
+            self.highlight_syntax_line(searchStart, searchEnd)
 
-        # Instr syntax
-        self.mark_set("matchStart", start)
-        self.mark_set("matchEnd", start)
-        self.mark_set("searchLimit", end)
-        count = tk.IntVar()
-        instr = []
-        with open(MIPS_INSTR) as in_file:
-            instr = json.load(in_file)
-        while True:
-            index = self.search(
-                "|".join(instr), "matchEnd", "searchLimit", count=count, regexp=True
-            )
-            if index == "":
-                break
-            self.mark_set("matchStart", index)
-            self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
-            self.tag_add("instr", "matchStart", "matchEnd")
-
-        # Reg syntax
-        self.mark_set("matchStart", start)
-        self.mark_set("matchEnd", start)
-        self.mark_set("searchLimit", end)
-        count = tk.IntVar()
-        reg = []
-        with open(MIPS_REG) as in_file:
-            reg = json.load(in_file).values()
-        while True:
-            index = self.search(
-                "|".join(reg).replace("$", "\$"),
-                "matchEnd",
-                "searchLimit",
-                count=count,
-                regexp=True,
-            )
-            if index == "":
-                break
-            self.mark_set("matchStart", index)
-            self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
-            self.tag_add("reg", "matchStart", "matchEnd")
-
-    def highlight_syntax_line(self):
-        self.mark_set("searchStart", self.index("insert linestart"))
-        self.mark_set("searchEnd", self.index("insert lineend"))
-
-        # Comments syntax
-        index = self.search("#", "searchStart", "searchEnd", regexp=True)
-        if index == "":
-            self.tag_remove("comment", "searchStart", "searchEnd")
+    def highlight_syntax_line(self, start=None, stop=None):
+        if start is None:
+            self.mark_set("searchStart", self.index("insert linestart"))
         else:
-            self.mark_set("matchStart", index)
-            self.tag_add("comment", "matchStart", "searchEnd")
+            self.mark_set('searchStart', start)
+        if stop is None:
+            self.mark_set("searchEnd", self.index("insert lineend"))
+        else:
+            self.mark_set('searchEnd', stop)
 
-        # Instructions syntax
+        #If comment exists, mark it and set searchEnd to start of comment
+        index = self.search('#', 'searchStart', 'searchEnd', regexp=True)
+        if index == '':
+            self.tag_remove('comment', 'searchStart', 'searchEnd')
+        else:
+            self.mark_set('matchStart', index)
+            self.tag_add('comment', 'matchStart', 'searchEnd')
+            self.mark_set('searchEnd', self.index('matchStart'))
+        
+        #Search for and highlight instructions
         count = tk.IntVar()
         instr = []
         with open(MIPS_INSTR) as in_file:
@@ -185,11 +148,12 @@ class CustomText(tk.Text):
             self.mark_set("matchStart", index)
             self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
             self.tag_add("instr", "matchStart", "matchEnd")
-
-        # Registers syntax
+        
+        # Search for and highlight regs
         reg = []
         with open(MIPS_REG) as in_file:
             reg = list(json.load(in_file).values())
+        self.tag_remove("reg", "searchStart", "searchEnd")
         while True:
             index = self.search(
                 "|".join(reg).replace("$", "\$"),
@@ -207,13 +171,12 @@ class CustomText(tk.Text):
                 self.mark_set("searchStart", "matchEnd+1c")
                 self.tag_add("reg", "matchStart", "matchEnd")
 
-
 class TextLineNumbers(tk.Canvas):
     def __init__(self, *args, **kwargs):
         tk.Canvas.__init__(self, *args, **kwargs)
         self.textwidget = None
         editor = Settings().editor
-        self.font = (editor["font"], editor["font-size"], "normal")
+        self.font = ("Courier", editor["font-size"], "normal")
 
     def attach(self, text_widget):
         self.textwidget = text_widget

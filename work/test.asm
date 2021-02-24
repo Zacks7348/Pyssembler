@@ -53,13 +53,3 @@ print_num:
 	addiu	$sp, $sp, 32
 
 	jr	$ra		# jump to return address
-
-
-
-
-
-
-
-
-
-

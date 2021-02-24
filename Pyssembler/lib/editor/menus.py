@@ -63,7 +63,9 @@ class FileMenu(tk.Menu):
             )
 
     def on_save_as(self, title="Save As"):
-        self.on_new_file(title=title)
+        result = self.on_new_file(title=title)
+        if not result:
+            return
         if self.manager.save():
             messagebox.showinfo(
                 "Save As", "Successfully saved " + self.manager.file_name
@@ -93,6 +95,8 @@ class FileMenu(tk.Menu):
         )
         if file_dir != "":
             self.manager.create_file(file_dir)
+            return True
+        return False
 
     def on_open_file(self):
         if not self.manager.saved:
@@ -123,6 +127,10 @@ class EditMenu(tk.Menu):
         super().__init__(master=None, tearoff=False)
         self.manager = manager
         self.add_command(label="Clear", command=self.on_clear)
+        self.add_separator()
+        self.add_command(label='Cut TODO')
+        self.add_command(label='Copy TODO')
+        self.add_command(label='Paste TODO')
 
     def on_clear(self):
         self.manager.clear_editor(unsave=True)
