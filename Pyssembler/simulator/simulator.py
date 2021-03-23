@@ -1,13 +1,12 @@
 import json
 import sys
 import ast
-from Simulator import instruction
 
-from utils import bin2int, clean_code, int2bin
-from utils import WORD, HWORD, BYTE, BIT
-from Simulator.instruction import Instruction
-from Simulator.hardware import Memory, RegisterFile
-from Simulator.hardware.coprocessors import CP0
+from .utils import bin2int, clean_code, int2bin
+from .utils import WORD, HWORD, BYTE, BIT
+from .instruction import Instruction
+from .hardware import Memory, RegisterFile
+from .hardware.coprocessors import CP0
 
 class Simulator:
     """

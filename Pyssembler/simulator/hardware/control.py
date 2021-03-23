@@ -1,6 +1,3 @@
-from os import R_OK
-
-
 class Control:
     """
     Represents MIPS32 Single Cycle CPU Controller

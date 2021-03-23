@@ -1,6 +1,6 @@
-from Simulator import SingleCycleSimulator
+from Pyssembler.simulator import SingleCycleSimulator
 
-prefix = 'asm/'
+prefix = 'work/'
 
 def parse_dat(filename):
    output = []

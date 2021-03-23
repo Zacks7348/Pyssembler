@@ -1,9 +1,10 @@
 import json
+import os.path
 from typing import Union
 
-from utils import MAX_SINT32, MAX_UINT32, MIN_SINT32
+from ..utils import MAX_SINT32, MAX_UINT32, MIN_SINT32
 
-REGISTERS = 'Simulator/registers.json'
+REGISTERS = os.path.dirname(__file__)+'/../registers.json'
 
 class RegisterFile:
     """
@@ -78,8 +79,6 @@ class RegisterFile:
         for addr, val in self.regs.items():
             print(('{} ({}): '+formatting[radix]).format(addr, val[1], val[0]))
         print(('xxxxx ($PC): '+formatting[radix]).format(self.PC))
-        print(('xxxxx ($HI): '+formatting[radix]).format(self.HI))
-        print(('xxxxx ($LO): '+formatting[radix]).format(self.LO))
         
 
     def __repr__(self) -> str:

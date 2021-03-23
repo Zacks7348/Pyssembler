@@ -1,8 +1,10 @@
-from utils import int2bin
-from utils import BIT, BYTE, HWORD, WORD
 import json
+import os.path
 
-MEMORY_CONFIG_FILE = 'Simulator/memory_config.json'
+from ..utils import int2bin
+from ..utils import BIT, BYTE, HWORD, WORD
+
+MEMORY_CONFIG_FILE = os.path.dirname(__file__)+'/../memory_config.json'
 
 
 class Memory:
