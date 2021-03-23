@@ -1,0 +1,21 @@
+{
+    "MMIO base address":    "0xffff0000",
+    "MMIO limit address":   "0xffff0010",
+    "kdata base address":   "0x90000000",
+    "kdata limit address":  "0xffff0000",
+    "ktext base address":   "0x80000000",
+    "ktext limit address":  "0x90000000",
+    "stack base address":   "0x7ffffffc",
+    "text base address":    "0x00400000",
+    "text limit address":   "0x0ffffffc",
+    "extern base address":  "0x10000000",
+    "extern limit address": "0x10010000",
+    "data base address":    "0x10010000",
+    "stack-heap boundary":  "0x40000000",
+    "heap base address":    "0x10040000",
+    "user memory limit":    "0x7fffffff",
+    "memory limit":         "0xffffffff",
+    "global pointer":       "0x10000000",
+    "block length":         "0x000007d0",
+    "block table length":   "0x000007d0"
+}
