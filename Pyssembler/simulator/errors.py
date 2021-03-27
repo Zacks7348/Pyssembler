@@ -1,174 +1,146 @@
-class TranslationError(Exception):
+from Pyssembler.errors import PyssemblerException
+
+class AssembleError(PyssemblerException):
     """
-    The base exception type for all translation related errors
+    The base exception type for all assembly-related errors
 
-    This inherits from :class:`Exception`
-
+    This inherits from :class:`PyssemblerException`
     """
+    def __init__(self, filename, line_num, error='AssembleError',
+            message='Could not assemble instruction',):
+        error_message = 'File: {filename}\n  {error}({line_num}): {message}'
+        
+        super().__init__(error_message.format(filename=filename, 
+                error=error, line_num=line_num, message=message))
 
-    def __init__(self, line=None, line_num=None):
-        self.line = line
-        self.line_num = line_num
-
-    def __str__(self):
-        return "TranslationError: Could not translate {} on line {}".format(
-            self.line, self.line_num
-        )
-
-
-class InvalidBinaryInstructionError(TranslationError):
+class DirectiveError(AssembleError):
     """
-    The base exception type for all binary instruction specific exceptions
+    The base exception type for all directive-related assembling errors
 
-    This inherits from :class:`TranslationError`
+    This inherits from :class:`AssembleError`
     """
 
-    def __str__(self):
-        return "InvalidBinaryInstructionError: Could not translate binary instruction {} on line {}".format(
-            self.line, self.line_num
-        )
-
-
-class InvalidSizeError(InvalidBinaryInstructionError):
+class InstructionError(AssembleError):
     """
-    Exception raised when binary instruction is not 32
+    The base exception type for all instruction-related assembling errors
 
-    This inherits from :class:`InvalidBinaryInstructionError`
+    This inherits from :class:`AssembleError`
     """
 
-    def __str__(self):
-        return "InvalidInstructionSizeError: Binary Instruction is not 32 bits on line {}".format(
-            self.line_num
-        )
-
-
-class InvalidOperationError(InvalidBinaryInstructionError):
+class CircularIncludeDirectiveError(DirectiveError):
     """
-    Exception raised when a binary instruction has an unknown op-code
+    Exception that is thrown when a file has a .include directive
+    that tries to include itself
 
-    This inherits from :class:`InvalidBinaryInstructionError`
+    This inherits from :class:`DirectiveError`
     """
+    def __init__(self, filename, line_num):
+        message = 'Circular .include directive detected'
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
 
-    def __init__(self, line, line_num, code):
-        super().__init__(line, line_num)
-        self.code = code
-
-    def __str__(self):
-        return "InvalidOperationError: Unsupported instruction with op-code {} on line {}".format(
-            self.code, self.line_num
-        )
-
-
-class InvalidFunctionError(InvalidBinaryInstructionError):
+class IncludeDirectiveFileNotFoundError(DirectiveError):
     """
-    Exception raised when a binary instruction has an unknown func-code
+    Exception that is thrown when attempting to open a file from a
+    .include directive fails
 
-    This inherits from :class:`InvalidBinaryInstructionError`
+    This inherits from :class:`DirectiveError` and is similar in nature
+    to ``FileNotFoundError`` 
     """
+    def __init__(self, filename, line_num):
+        message = 'Could not open file from .include directive'
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
 
-    def __init__(self, line, line_num, code):
-        super().__init__(line, line_num)
-        self.code = code
-
-    def __str__(self):
-        return "InvalidFunctionError: Unsupported instruction with func-code {} on line {}".format(
-            self.code, self.line_num
-        )
-
-
-class InvalidTargetError(InvalidBinaryInstructionError):
+class InvalidAlignDirectiveError(DirectiveError):
     """
-    Exception raised when a binary instruction has an invalid target
+    Exception that is thrown when a .align directive has an invalid value
 
-    This inherits from :class:`InvalidBinaryInstructionError`
+    This inherits from :class:`DirectiveError`
     """
+    def __init__(self, filename, line_num, value):
+        message = 'Invalid alignment value {}. Must be 0, 1 or 2'.format(value)
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
 
-    def __init__(self, line, line_num, target):
-        super().__init__(line, line_num)
-        self.target = target
-
-    def __str__(self):
-        return "InvalidTargetError: Invalid jump target to {} from line {}".format(
-            self.target, self.line_num
-        )
-
-
-class InvalidOffsetError(InvalidBinaryInstructionError):
+class UnsupportedDirectiveError(DirectiveError):
     """
-    Exception raised when a binary instruction has an invalid offset
+    Directive that is thrown when a directive that is not supported is found
 
-    This inherits from :class:`InvalidBinaryInstructionError`
+    This inherits from :class:`DirectiveError`
     """
+    def __init__(self, filename, line_num, directive):
+        message = 'Unsupported directive {}'.format(directive)
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
 
-    def __init__(self, line, line_num, offset):
-        super().__init__(line, line_num)
-        self.offset = offset
-
-    def __str__(self):
-        return "InvalidOffsetError: Invalid branch offset {} from line {}".format(
-            self.offset, self.line_num
-        )
-
-
-class InvalidMIPSInstructionError(TranslationError):
+class GlobalSymbolDefinedError(AssembleError):
     """
-    The base exception type for all MIPS instruction exceptions
+    Exception that is thrown when a file declares a symbol that has
+    already been defined globally
 
-    This inherits from :class:`TranslationError`
+    This inherits from :class:`AssembleError`
     """
+    def __init__(self, filename, line_num, symbol):
+        message = 'Global symbol {} already defined'.format(symbol)
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
 
-    def __str__(self):
-        return "InvalidMIPSInstructionError({}): Could not translate MIPS instruction {}".format(
-            self.line_num, self.line
-        )
-
-
-class InvalidInstructionError(InvalidMIPSInstructionError):
+class LocalSymbolDefinedError(AssembleError):
     """
-    Exception raised when a MIPS instruction has an invalid operation
+    Exception that is thrown when a file declares a symbol that has
+    already been defined locally
 
-    This inherits from :class:`InvalidMIPSInstructionError`
+    This inherits from :class:`AssembleError`
     """
+    def __init__(self, filename, line_num, symbol):
+        message = 'Local symbol {} already defined'.format(symbol)
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
 
-    def __init__(self, line, line_num, operation):
-        super().__init__(line, line_num)
-        self.op = operation
-
-    def __str__(self):
-        return "InvalidRegisterError({}): Invalid operation {}".format(
-            self.line_num, self.op
-        )
-
-
-class InvalidRegisterError(InvalidMIPSInstructionError):
+class InvalidDataTypeError(AssembleError):
     """
-    Exception raised when a MIPS instruction has an invalid register
+    Exception that is thrown when program tries to write a data value
+    into memory in an invalid size format. IE storing a string as a .word
 
-    This inherits from :class:`InvalidMIPSInstructionError`
+    This inherits from :class:`AssembleError`
     """
+    def __init__(self, filename, line_num, message):
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
 
-    def __init__(self, line, line_num, register):
-        super().__init__(line, line_num)
-        self.register = register
-
-    def __str__(self):
-        return "InvalidRegisterError({}): Invalid register {}".format(
-            self.line_num, self.register
-        )
-
-
-class InvalidLabelError(InvalidMIPSInstructionError):
+class UnsupportedInstructionError(InstructionError):
     """
-    Exception raised when a MIPS instruction has an invalid label
+    Exception that is thrown when trying to assemble an unsupported instruction
 
-    This inherits from :class:`InvalidMIPSInstructionError`
+    This inherits from :class:`InstructionError`
     """
+    def __init__(self, filename, line_num):
+        message = 'Unsupported Instruction'
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
 
-    def __init__(self, line, line_num, label):
-        super().__init__(line, line_num)
-        self.label = label
+class InvalidInstructionFormatError(InstructionError):
+    """
+    Exception that is thrown when an instruction is not formatted
+    properly
 
-    def __str__(self):
-        return "InvalidLabelError({}): Invalid label {}".format(
-            self.line_num, self.label
-        )
+    This inherits from :class:`InstructionError`
+    """
+    def __init__(self, filename, line_num, malformed):
+        message = 'Invalid format {}'.format(malformed)
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
+
+class InvalidRegisterError(InstructionError):
+    """
+    Exception that is thrown when an instruction being assembled has an 
+    invalid register name.
+
+    This inherits from :class:`InstructionError`
+    """
+    def __init__(self, filename, line_num, register):
+        message = 'Invalid register '+register
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
+
+class InvalidLabelError(InstructionError):
+    """
+    Exception that is thrown when an instruction being assembled references
+    an undefined label
+
+    This inherits from :class:`InstructionError`
+    """
+    def __init__(self, filename, line_num, label):
+        message = 'Undefined label {}'.format(label)
+        super().__init__(filename, line_num, error=self.__class__.__name__, message=message)

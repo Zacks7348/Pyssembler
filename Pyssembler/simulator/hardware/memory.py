@@ -1,7 +1,6 @@
 import json
 import os.path
 
-from ..utils import int2bin
 from ..utils import BIT, BYTE, HWORD, WORD
 
 MEMORY_CONFIG_FILE = os.path.dirname(__file__)+'/../memory_config.json'

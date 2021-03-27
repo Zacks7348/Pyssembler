@@ -1,4 +1,5 @@
 from Pyssembler.simulator import SingleCycleSimulator
+from Pyssembler.simulator.errors import *
 
 prefix = 'work/'
 
@@ -14,5 +15,5 @@ if __name__ == '__main__':
    sim = SingleCycleSimulator(debug_mode=True)
    #sim.load_instructions(parse_dat('test.dat'))
    #sim.assemble(['basic test.asm'])
-   sim.assemble([prefix+'test with data segment.asm'])
-   sim.print_reg()
+   sim.assemble([prefix+'test.asm'])
+   #sim.print_reg()

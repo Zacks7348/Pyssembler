@@ -73,7 +73,7 @@ fun:	# This function overwrites $s0 and $s1
 	
 	# Return from function
 	jr $ra			# Jump to addr stored in $ra
-	
+
 # ------------------------------------------------------------------
 	
 	# Start .data segment (data!)
