@@ -1,1 +1,1 @@
-from .simulator import Simulator, SingleCycleSimulator
+from .simulator import Simulator, PipelineSimulator, SingleCycleSimulator

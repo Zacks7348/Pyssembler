@@ -15,9 +15,14 @@ class Simulator:
     """
     Base Class for MIPS32 Simulators
 
-    Provides registers and memory
+    Provides all core components of a MIPS simulator. Also provides a function
+    to assemble mips instructions
     """
     def __init__(self, step=False, debug_mode=False, prefix='[Simulator]') -> None:
+
+        self.ENCODINGS_FILE = os.path.dirname(__file__)+'/encodings.json'
+        self.REGISTERS_FILE = os.path.dirname(__file__)+'/registers.json'
+
         # If step=True, wait for user input before executing next instr
         self.step = step
         self.debug_mode = debug_mode
@@ -40,44 +45,7 @@ class Simulator:
             self.memory.write(addr, val)
         except Exception as err:
             self.error('Could not write to memory, '+str(err))
-
-    def load_instructions(self, instructions: list) -> None:
-        """
-        Takes a list of instructions and stores them into simulated memory
-        """
-        self.debug('Loading instructions into memory...')
-        for i, instr in enumerate(instructions):
-            self.memory.write(self.rf.PC + (i*4), instr)
-            self.debug('Loaded {}/{} instructions into memory'.format(
-                i+1, len(instructions)))
-
-    def debug(self, message: str) -> None:
-        if self.debug_mode:
-            print('{}[DEBUG] {}'.format(self.verbose_prefix, message))
-
-    def warning(self, message: str) -> None:
-        print('{}[WARNING] {}'.format(self.verbose_prefix, message))
     
-    def error(self, message: str) -> None:
-        print('{}[ERROR] {}'.format(self.verbose_prefix, message))
-
-    def print_reg(self, radix=int):
-        print('-------Registers-------')
-        self.rf.print(radix)
-        print('-----------------------')
-    
-class SingleCycleSimulator(Simulator):
-    """
-    Represents a Single Cycle MIPS32 Simulator. 
-
-    """
-    def __init__(self, step=False, debug_mode=False) -> None:
-        super().__init__(step=step, debug_mode=debug_mode, prefix='[SCS]')
-
-        self.ENCODINGS_FILE = os.path.dirname(__file__)+'/encodings.json'
-        self.REGISTERS_FILE = os.path.dirname(__file__)+'/registers.json'
-
-
     def assemble(self, asm_files: list) -> None:
         self.debug('Assembling files...')
         self.global_symbols = {}
@@ -95,20 +63,11 @@ class SingleCycleSimulator(Simulator):
                     print(line_num, line)
 
         # Handle any .include directives
-        status = self.__include()
-        if not status:
-            self.error('Could not assemble program')
-            return
+        self.__include()
         
         # Create symbol tables for program. also prepare memory
         # addresses for each instruction
         instructions = self.generate_symbols()
-        if not instructions:
-            self.error('Could not assemble program')
-            return
-
-        for entry in instructions:
-            print(entry)
 
         # Ready to assemble instructions
         self.__assemble(instructions)
@@ -491,16 +450,38 @@ class SingleCycleSimulator(Simulator):
                 continue
             binary_code = encoding.format(rs=rs, rt=rt, rd=rd, i16_s=i16_s, 
                 i16_u=i16_u, base=base, sa=sa, i21_s=i21_s, i26_u=i26_u, sel=sel)
-            print(binary_code, line)
+            self.m_code.append(binary_code, addr)
             #self.debug('Writing instruction {} into memory at address {}'.format(binary_code, addr))
             #self.mem_write(addr, binary_code)
 
-    def _step(self):
-        # Get instruction at PC
-        instr = Instruction(self.instr_memory[self.PC])
+    def debug(self, message: str) -> None:
+        if self.debug_mode:
+            print('{}[DEBUG] {}'.format(self.verbose_prefix, message))
 
-if __name__ == '__main__':
-    sim = SingleCycleSimulator(verbose=2)
-    #sim.load_asm('test.asm')
-    sim.print_reg(radix=int)
-        
+    def warning(self, message: str) -> None:
+        print('{}[WARNING] {}'.format(self.verbose_prefix, message))
+    
+    def error(self, message: str) -> None:
+        print('{}[ERROR] {}'.format(self.verbose_prefix, message))
+
+    def print_reg(self, radix=int):
+        print('-------Registers-------')
+        self.rf.print(radix)
+        print('-----------------------')
+    
+class SingleCycleSimulator(Simulator):
+    """
+    Represents a single cycle MIPS32 Simulator. 
+    """
+    def __init__(self, debug_mode=False) -> None:
+        super().__init__(debug_mode=debug_mode, prefix='[SCS]')
+    
+    def simulate():
+        pass
+
+class PipelinedSimulator(Simulator):
+    """
+    Represents a Pipeline MIPS32 Simulator. 
+    """
+    def __init__(self, step=False, debug_mode=False) -> None:
+        super().__init__(step=step, debug_mode=debug_mode, prefix='[PS]')

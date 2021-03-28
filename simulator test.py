@@ -1,4 +1,4 @@
-from Pyssembler.simulator import SingleCycleSimulator
+from Pyssembler.simulator import PipelineSimulator, SingleCycleSimulator
 from Pyssembler.simulator.errors import *
 
 prefix = 'work/'

@@ -20,13 +20,6 @@ class DirectiveError(AssembleError):
     This inherits from :class:`AssembleError`
     """
 
-class InstructionError(AssembleError):
-    """
-    The base exception type for all instruction-related assembling errors
-
-    This inherits from :class:`AssembleError`
-    """
-
 class CircularIncludeDirectiveError(DirectiveError):
     """
     Exception that is thrown when a file has a .include directive
@@ -102,6 +95,13 @@ class InvalidDataTypeError(AssembleError):
     def __init__(self, filename, line_num, message):
         super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
 
+class InstructionError(AssembleError):
+    """
+    The base exception type for all instruction-related assembling errors
+
+    This inherits from :class:`AssembleError`
+    """
+
 class UnsupportedInstructionError(InstructionError):
     """
     Exception that is thrown when trying to assemble an unsupported instruction
@@ -144,3 +144,4 @@ class InvalidLabelError(InstructionError):
     def __init__(self, filename, line_num, label):
         message = 'Undefined label {}'.format(label)
         super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
+

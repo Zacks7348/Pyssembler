@@ -123,7 +123,7 @@ class Memory:
                 val_bytes.append(val[i-BYTE:i])
             self._write_bytes(addr-len(val_bytes)+1, val_bytes)
 
-    
+
     def _write_bytes(self, addr: int, val_bytes: list) -> None:
         """
         Helper function for writing bytes to memory
