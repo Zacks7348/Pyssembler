@@ -10,6 +10,9 @@ HWORD = 16
 BYTE = 8
 BIT = 1
 
+WORD_LENGTH_BYTES = WORD // BYTE
+HWORD_LENGTH_BYTES = HWORD // BYTE
+
 def sign_extend(b: str, bits=32) -> str:
     """
     Utility function for sign extending a binary string

@@ -1,10 +1,17 @@
 from Pyssembler.errors import PyssemblerException
 
-class AssembleError(PyssemblerException):
+class SimulatorError(PyssemblerException):
+    """
+    The base exception type for all mips32 simulation errors
+
+    This inherits from :class:`PyssemblerException`
+    """
+
+class AssembleError(SimulatorError):
     """
     The base exception type for all assembly-related errors
 
-    This inherits from :class:`PyssemblerException`
+    This inherits from :class:`SimulatorError`
     """
     def __init__(self, filename, line_num, error='AssembleError',
             message='Could not assemble instruction',):
@@ -94,6 +101,7 @@ class InvalidDataTypeError(AssembleError):
     """
     def __init__(self, filename, line_num, message):
         super().__init__(filename, line_num, error=self.__class__.__name__, message=message)
+
 
 class InstructionError(AssembleError):
     """

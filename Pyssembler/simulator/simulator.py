@@ -1,11 +1,11 @@
 import json
+from os import name
 import os.path
 import ast
 
 from .utils import clean_code
 from .utils import Binary, Integer
 from .utils import WORD, HWORD, BYTE, BIT
-from .instruction import Instruction
 from .hardware import Memory, RegisterFile
 from .hardware.coprocessors import CP0
 from Pyssembler.simulator import instruction
@@ -28,23 +28,23 @@ class Simulator:
         self.debug_mode = debug_mode
         self.verbose_prefix = prefix
 
-        # Memory
-        self.memory = Memory()
-
         #Coprocessors
         self.CP0 = CP0()
+
+        # Memory
+        self.memory = Memory(CP0)
 
         # Gen Purpose Registers
         self.rf = RegisterFile()
         self.rf.write(name='$gp', val=self.memory.global_pointer)
         self.rf.write(name='$sp', val=self.memory.stack_base_addr)
         self.rf.PC = self.memory.text_base_addr
+        print(self.rf.PC)
 
-    def mem_write(self, addr: int, val: str):
-        try:
-            self.memory.write(addr, val)
-        except Exception as err:
-            self.error('Could not write to memory, '+str(err))
+        # Simulation Modes
+        self.SINGLE_INSTRUCTION = 0
+        self.DELAY_SLOT = 1
+
     
     def assemble(self, asm_files: list) -> None:
         self.debug('Assembling files...')
@@ -59,8 +59,6 @@ class Simulator:
         for f in self.asm_files:
             with open(f, 'r') as asm:
                 self.a_code[f] = clean_code(asm.readlines())
-                for line, line_num in self.a_code[f]:
-                    print(line_num, line)
 
         # Handle any .include directives
         self.__include()
@@ -161,9 +159,9 @@ class Simulator:
                     num_bytes = parsed[2]
                     self.global_symbols[label] = extern_addr
                     self.debug('Creating extern label {} at mem address'\
-                        ' 0x{:08x} of size {} bytes'.format(label, extern_addr, num_bytes))
+                        ' {} of size {} bytes'.format(label, extern_addr, num_bytes))
                     for _ in range(int(num_bytes)):
-                        self.mem_write(extern_addr, Binary.from_int(0, bits=BYTE))
+                        self.memory.write(extern_addr, 0, size=BYTE)
                         extern_addr += 1
                 elif line.startswith('.'):
                     raise UnsupportedDirectiveError(f, line_num, line)
@@ -210,10 +208,9 @@ class Simulator:
                             val = val.replace(',', '')
                             if "'" in val: val = ord(val.replace("'", ''))
                             else: val = int(val)
-                            bin_val = Binary.from_int(val, bits=sizes[directive])
-                            self.debug('writing {} ({}) into mem at address' \
-                                ' 0x{:08x}'.format(bin_val, val, data_addr))
-                            self.mem_write(data_addr, bin_val)
+                            self.debug('writing {} into mem at address' \
+                                ' {}'.format(val, data_addr))
+                            self.memory.write(data_addr, val, size=sizes[directive])
                             data_addr += align
 
                     elif directive == '.ascii' or directive == '.asciiz':
@@ -222,22 +219,21 @@ class Simulator:
                         string = ast.literal_eval(string)
                         if directive.endswith('z'): string += '\0'
                         for char in string:
-                            bin_val = Binary.from_int(ord(char), bits=BYTE)
+                            val = ord(char)
                             self.debug('writing {} ({}) into mem at address' \
-                                ' 0x{:08x}'.format(bin_val, repr(char), data_addr))
-                            self.mem_write(data_addr, bin_val)
+                                ' {}'.format(val, repr(char), data_addr))
+                            self.memory.write(data_addr, val, size=BYTE)
                             data_addr += 1
-                        data_addr -= 1
                     elif directive == '.space':
                         self.local_symbols[f][label] = data_addr
                         val = values[0]
                         self.debug('reserving {} bytes for {} starting at' \
-                            ' 0x{:08x}'.format(val, label, data_addr))
+                            ' {}'.format(val, label, data_addr))
                         for _ in range(int(val)):
-                            self.mem_write(data_addr, Binary.from_int(0, bits=BYTE))
+                            self.memory.write(data_addr, 0, size=BYTE)
                             data_addr += 1        
         return instructions
-           
+
     def __assemble(self, program: list):
         """
         Helper function for assembling mips instructions into
@@ -255,9 +251,12 @@ class Simulator:
             Throws InvalidRegisterError if reg is not a valid register
             """
             reg = reg.replace(',', '')
-            if not reg in REGISTERS:
+            if not reg in REGISTERS['GPR'] and not reg in REGISTERS['CP0']:
                 raise InvalidRegisterError(filename, line_num, reg)
-            return Binary.from_int(REGISTERS[reg], bits=5)
+            if reg in REGISTERS['GPR']:
+                return Binary.from_int(REGISTERS['GPR'][reg], bits=5)
+            if reg in REGISTERS['CP0']:
+                return Binary.from_int(REGISTERS['CP0'][reg], bits=5)
         
         def encode_immediate(i: str, bits: int, signed=False) -> str:
             """
@@ -311,8 +310,9 @@ class Simulator:
             encoding = None
             if instr in ENCODINGS['CPU Load/Store']:
                 # instr is a load/store
-                # format: instr $rt i16_s(base)
-                rt = encode_register(parsed[1]) 
+                # format: instr $rt, i16_s(base)
+                rt = encode_register(parsed[1])
+                    
                 parsed_address = parsed[2].split('(')
                 if len(parsed_address) != 2:
                     # invalid format: not i16_s(base)
@@ -450,9 +450,11 @@ class Simulator:
                 continue
             binary_code = encoding.format(rs=rs, rt=rt, rd=rd, i16_s=i16_s, 
                 i16_u=i16_u, base=base, sa=sa, i21_s=i21_s, i26_u=i26_u, sel=sel)
-            self.m_code.append(binary_code, addr)
-            #self.debug('Writing instruction {} into memory at address {}'.format(binary_code, addr))
+            bin_code_int = int(binary_code, 2)
+            self.m_code.append((binary_code, addr))
+            self.debug('Writing instruction {} ({}) into memory at address {}'.format(binary_code, bin_code_int, addr))
             #self.mem_write(addr, binary_code)
+            self.memory.write(addr, bin_code_int, size=WORD)
 
     def debug(self, message: str) -> None:
         if self.debug_mode:
@@ -463,25 +465,12 @@ class Simulator:
     
     def error(self, message: str) -> None:
         print('{}[ERROR] {}'.format(self.verbose_prefix, message))
+    
+    def bar(self) -> None:
+        print('-'*50)
 
     def print_reg(self, radix=int):
         print('-------Registers-------')
         self.rf.print(radix)
         print('-----------------------')
     
-class SingleCycleSimulator(Simulator):
-    """
-    Represents a single cycle MIPS32 Simulator. 
-    """
-    def __init__(self, debug_mode=False) -> None:
-        super().__init__(debug_mode=debug_mode, prefix='[SCS]')
-    
-    def simulate():
-        pass
-
-class PipelinedSimulator(Simulator):
-    """
-    Represents a Pipeline MIPS32 Simulator. 
-    """
-    def __init__(self, step=False, debug_mode=False) -> None:
-        super().__init__(step=step, debug_mode=debug_mode, prefix='[PS]')

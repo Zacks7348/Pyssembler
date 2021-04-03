@@ -1,3 +1,4 @@
+	.text
 main:
 
 	addiu	$sp, $sp, -32	# Adjust stack
@@ -6,13 +7,13 @@ main:
 	addiu	$fp, $sp, 28	# load new frame pointer	
 
 	lw	$t1, 0($t0)
-	li	$t0, 0		# init index to 0
+	#li	$t0, 0		# init index to 0
 
 loop:
 	sw	$t0, 12($sp)	# save caller saved registers
 	sw	$t1, 8($sp)	# 
 
-	move	$a0, $t0	# setup parameter for fn call
+	#move	$a0, $t0	# setup parameter for fn call
 
 	jal	print_num	# call subroutine
 
@@ -36,16 +37,16 @@ print_num:
 	sw	$s0, 12($sp)
 	addiu	$fp, $sp, 28
 
-	move	$s0, $a0	# store argument in temp variable
+	#move	$s0, $a0	# store argument in temp variable
 
-	li	$v0, 4
+	#li	$v0, 4
 	syscall			# call print_string
 
-	li	$v0, 1
-	move	$a0, $s0	# restore argument $a0
+	#li	$v0, 1
+	#move	$a0, $s0	# restore argument $a0
 	syscall			# call print_int
 
-	li	$v0, 4
+	#li	$v0, 4
 	syscall			# call print_string
 
 	lw	$s0, 12($sp)
@@ -53,3 +54,10 @@ print_num:
 	addiu	$sp, $sp, 32
 
 	jr	$ra		# jump to return address
+
+	# Start .data segment (data!)
+	.data
+x:	.word 5
+y:	.word 0
+msg1:	.asciiz	"y="
+lf:     .asciiz	"\n"

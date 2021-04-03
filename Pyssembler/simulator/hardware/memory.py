@@ -2,6 +2,8 @@ import json
 import os.path
 
 from ..utils import BIT, BYTE, HWORD, WORD
+from ..utils import WORD_LENGTH_BYTES, HWORD_LENGTH_BYTES
+from ..utils import MAX_UINT32, MIN_SINT32
 
 MEMORY_CONFIG_FILE = os.path.dirname(__file__)+'/../memory_config.json'
 
@@ -18,8 +20,12 @@ class Memory:
 
     All values are stored in memory in little-endian order.
 
+    Needs the CP0 object created in the simulator object for determining if
+    in user or kernel mode
     """
-    def __init__(self) -> None:
+    def __init__(self, CP0) -> None:
+
+        self.CP0 = CP0 #Coprosser 0
 
         # Declare different segments of memory
         self.config = {}
@@ -62,68 +68,77 @@ class Memory:
 
         self.memory = {}
     
-    def read(self, addr: int, data_size: int) -> str:
+    def read_word(self, addr: int) -> int:
         """
-        Returns the value at the given address in memory
-
-        If the address hasn't been initialized yet, return 0
+        Read a word from memory starting at addr
         """
-        if addr % (WORD / data_size) != 0:
-            # if addr is not word-aligned
-            raise ValueError('Memory Address is not aligned')
-
-        if not 0 < addr < self.user_memory_limit:
-            # If addr not in memory range
-            raise ValueError('Invalid Memory Address')
-        
-        if data_size != WORD or data_size != HWORD or data_size != BYTE:
-            raise ValueError('data_size must be {}, {}, or {}'.format(WORD, HWORD, BYTE))
-        
-        if self.in_data_range(addr) or self.in_text_range(addr):
-            # In data or text segment, read one byte at a time
-            return self._read_bytes(addr, data_size)
-
-        if self.in_stack_range(addr):
-            return self._read_bytes(addr-(data_size // BYTE)+1, data_size)
-
-    def _read_bytes(self, addr: int, data_size: int) -> str:
-        val = ''
-        for offset in range(data_size // BYTE):
-            val += self.memory.get(addr+offset, '00000')
+        if addr % WORD_LENGTH_BYTES != 0:
+            raise ValueError('Address is not naturally aligned')
+        mask = 0xFF000000
+        val = 0 & mask
+        if self.in_stack_segment(addr):
+            addr = addr - WORD_LENGTH_BYTES + 1
+        for i, val_byte in enumerate(self._read_bytes(addr, WORD_LENGTH_BYTES)):
+            val = ((val_byte << WORD-(i*BYTE)-BYTE) & (mask >> i*BYTE)) | val
         return val
-
-    def write(self, addr: int, val: str) -> None:
+    
+    def read_hword(self, addr: int) -> int:
         """
-        Writes a binary value into memory starting at addr. 
-        Value must be of size byte, hword, or word
+        Read a half word from memory starting at addr
         """
-        SIZE = len(val)
-        if SIZE != WORD and SIZE != HWORD and SIZE != BYTE:
-            raise ValueError('value must be of size WORD, HWORD, OR BYTE. Got {} bits'.format(SIZE))
-        if (SIZE == WORD and (addr % (WORD // BYTE)) != 0) or \
-            (SIZE == HWORD and (addr % (HWORD // BYTE)) != 0):
-            # if addr is not aligned
-            raise ValueError('address is not aligned! {}')
+        if addr % HWORD_LENGTH_BYTES != 0:
+            raise ValueError('Address is not naturally aligned')
+        mask = 0x0000FF00
+        val = 0 & mask
+        if self.in_stack_segment(addr):
+            addr = addr - HWORD_LENGTH_BYTES + 1
+        for i, val_byte in enumerate(self._read_bytes(addr, HWORD_LENGTH_BYTES)):
+            val = ((val_byte << HWORD-(i*BYTE)-BYTE) & (mask >> i*BYTE)) | val
+        return val
+    
+    def read_byte(self, addr: int) -> int:
+        """
+        Read a byte from memory starting at addr
+        """
+        return self.memory.get(addr, 0)
 
-        if not 0 < addr < self.user_memory_limit:
-            # If addr not in memory range
-            raise ValueError('Invalid Memory Address {}'.format(hex(addr)))
-            
-        if self.in_data_range(addr) or self.in_text_range(addr):
-            # In data or text segment, write one byte at a time ignoring boundaries
-            val_bytes = []
-            for i in range(BYTE, len(val)+1, BYTE):
-                val_bytes.append(val[i-BYTE:i])
+    def _read_bytes(self, addr: int, num_bytes: int) -> list:
+        """
+        Reads bytes from memory starting at addr
+
+        Returns list of bytes in order of read
+        """
+        val_bytes = []
+        for i in range(num_bytes):
+            val_bytes.append(self.memory.get(addr+i, 0))
+        return val_bytes
+    
+    def write(self, addr: int, val: int, size: int) -> None:
+        """
+        Writes a value into simulated memory starting at addr
+        addr must be naturally aligned with size
+        """
+        if not size in (WORD, HWORD, BYTE):
+            raise ValueError('Value must be of size WORD, HWOWRD or BYTE')
+        if (addr % (size // BYTE)) != 0:
+            raise ValueError('Address is not naturally aligned')
+        if not 0 <= addr <= MAX_UINT32:
+            raise ValueError('Address out of bounds')
+        if self.CP0.user_mode == 1:
+            # user mode
+            if not self.in_user_memory(addr):
+                raise ValueError('Cannot write to kernel memory in user mode')
+        masks = {WORD: 0xFF000000, HWORD: 0x0000FF00, BYTE: 0x000000FF}
+
+        val_bytes = []
+        for i in range(0, size, BYTE):
+            val_bytes.append((val & (masks[size] >> i)) >> size-i-BYTE)
+
+        if self.in_stack_segment(addr):
+            self._write_bytes(addr-len(val_bytes)+1, val_bytes)
+        else:
             self._write_bytes(addr, val_bytes)
         
-        if self.in_stack_range(addr):
-            # In stack, same as data write except stack grows downwards
-            val_bytes = []
-            for i in range(BYTE, len(val)+1, BYTE):
-                val_bytes.append(val[i-BYTE:i])
-            self._write_bytes(addr-len(val_bytes)+1, val_bytes)
-
-
     def _write_bytes(self, addr: int, val_bytes: list) -> None:
         """
         Helper function for writing bytes to memory
@@ -135,7 +150,6 @@ class Memory:
             if write_addr >= self.memory_limit:
                 raise IndexError('Trying to write past memory limit')
             self.memory[addr+offset] = byte
-        
 
     def allocate_bytes_in_heap(self, num_bytes: int) -> int:
         """
@@ -143,47 +157,53 @@ class Memory:
  
         if num_bytes is not word aligned, allocates additional bytes to
         make num_bytes word aligned
-
-        In worst case scenario where 3 bytes are allocated and unused for
-        each allocation call, heap becomes very fragmented and wastefull
         """
         address = self.heap_pointer
-        while (num_bytes//4 != 0): num_bytes += 1
+        while ((num_bytes-1)//4 != 0): num_bytes += 1
 
         self.heap_pointer += num_bytes
+        return address
 
 
     def get_modified_addresses(self) -> list:
         return list(self.memory.keys())
+    
+    def dump(self, radix=int) -> dict:
+        """
+        Dumps memory
+        """
+        formatting = {int: '{}', hex: '0x{:02x}', bin: '{:08b}'}
+        dumped = {}
+        for addr in self.memory:
+            if addr % 4 == 0:  
+                dumped[addr] = []
+                for i in range(4):
+                    val = formatting[radix].format(self.memory.get(addr+i, 0), 2)
+                    dumped[addr].append(val)
+        return dumped
 
+    # Helper functions for determining which memory segment an address is in
     def in_user_memory(self, addr: int) -> bool:
         return self.text_base_addr <= addr < self.ktext_base_addr
 
-    def in_MMIO_range(self, addr: int) -> bool:
+    def in_MMIO_segment(self, addr: int) -> bool:
         return self.mmio_base_addr <= addr < self.mmio_limit_addr
 
-    def in_kdata_range(self, addr: int) -> bool:
+    def in_kdata_segment(self, addr: int) -> bool:
         return self.kdata_base_addr <= addr < self.kdata_limit_addr
 
-    def in_ktext_range(self, addr: int) -> bool:
+    def in_ktext_segment(self, addr: int) -> bool:
         return self.ktext_base_addr <= addr < self.ktext_limit_addr
 
-    def in_stack_range(self, addr: int) -> bool:
+    def in_stack_segment(self, addr: int) -> bool:
         return self.stack_base_addr >= addr > self.stack_heap_boundary
 
-    def in_text_range(self, addr: int) -> bool:
+    def in_text_segment(self, addr: int) -> bool:
         return self.text_base_addr <= addr < self.text_limit_addr
 
-    def in_extern_range(self, addr: int) -> bool:
+    def in_extern_segment(self, addr: int) -> bool:
         return self.extern_base_addr <= addr < self.extern_limit_addr
 
-    def in_data_range(self, addr: int) -> bool:
+    def in_data_segment(self, addr: int) -> bool:
         return self.data_base_addr <= addr < self.stack_heap_boundary
 
-        
-if __name__ == '__main__':
-    mem = Memory()
-    mem.write(0x7fffeffc-173016, '00000000111111110000000011111111')
-    print(0x7fffeffc-173016)
-    print(mem.memory)
-    print(mem.get_modified_addresses())

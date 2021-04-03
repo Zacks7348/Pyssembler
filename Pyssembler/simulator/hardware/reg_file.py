@@ -19,7 +19,7 @@ class RegisterFile:
         self.regs = {} # {addr: [value, name]}
         self.regs_name = {}
         with open (REGISTERS, 'r') as f:
-            for name, addr in json.load(f).items():
+            for name, addr in json.load(f)["GPR"].items():
                 self.regs[addr] = [0, name]
                 self.regs_name[name] = self.regs[addr]
         self.PC = 0
@@ -48,39 +48,35 @@ class RegisterFile:
         Can either pass address of register or name of register. If name is not None,
         register is accessed by name and anything passed in addr is ignored
         """
-        if not self.valid_val(val):
-            raise ValueError('Invalid Register Value')
-
+        if not 0 <= val <= MAX_UINT32:
+            raise ValueError('Invalid value')
         if not addr and not name:
             raise ValueError('Must pass either register address or name')
 
         if name:
             if name not in self.regs_name:
                 if name == '$PC': self.PC = val
-                elif name == '$HI': self.HI = val
-                elif name == '$LO': self.LO = val
                 else: raise ValueError('Invalid Register Name')
             self.regs_name[name][0] = val
             return
         if not 0 <= addr < 32:
-            raise ValueError('Invalid Register Address')
+            raise ValueError('Invalid GPR Address')
         if addr == 0 or addr == 1:
             return
         self.regs[addr][0] = val
     
-    def valid_val(self, n: int):
-        """
-        
-        """
-        return MIN_SINT32 <= n <= MAX_SINT32
+    def increment_pc(self):
+        self.PC += 4
     
+    def get_regs(self):
+        return {values[1]:addr for (addr, values) in self.regs.items()}
+
     def print(self, radix=int):
         formatting = {int: '{}', hex: '0x{:08x}', bin: '{:032b}'}
         for addr, val in self.regs.items():
             print(('{} ({}): '+formatting[radix]).format(addr, val[1], val[0]))
         print(('xxxxx ($PC): '+formatting[radix]).format(self.PC))
         
-
     def __repr__(self) -> str:
         output = ''
         for addr, val in self.regs.items():

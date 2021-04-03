@@ -1,4 +1,4 @@
-from Pyssembler.simulator import PipelineSimulator, SingleCycleSimulator
+from Pyssembler.simulator import Simulator
 from Pyssembler.simulator.errors import *
 
 prefix = 'work/'
@@ -12,8 +12,15 @@ def parse_dat(filename):
    return output
 
 if __name__ == '__main__':
-   sim = SingleCycleSimulator(debug_mode=True)
-   #sim.load_instructions(parse_dat('test.dat'))
-   #sim.assemble(['basic test.asm'])
-   sim.assemble([prefix+'test.asm'])
-   #sim.print_reg()
+
+   sim = Simulator(debug_mode=True)
+   
+   #sim.assemble([prefix+'test.asm'])
+   #sim.simulate(sim.SINGLE_INSTRUCTION)
+   print(sim.CP0.get_regs())
+
+   '''
+   for addr, values in sim.memory.dump(radix=bin).items():
+      print('{}: {}'.format(addr, ', '.join(values)))
+   '''
+
