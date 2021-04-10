@@ -6,10 +6,11 @@ import ast
 from .utils import clean_code
 from .utils import Binary, Integer
 from .utils import WORD, HWORD, BYTE, BIT
-from .hardware import Memory, RegisterFile
-from .hardware.coprocessors import CP0
-from Pyssembler.simulator import instruction
+from .hardware import MEM, RF, CP0
+from .hardware import GP_REGS, CP0_REGS
+from Pyssembler.simulator.instruction import InstructionSet
 from .errors import *
+
 
 class Simulator:
     """
@@ -18,42 +19,33 @@ class Simulator:
     Provides all core components of a MIPS simulator. Also provides a function
     to assemble mips instructions
     """
+
     def __init__(self, step=False, debug_mode=False, prefix='[Simulator]') -> None:
 
         self.ENCODINGS_FILE = os.path.dirname(__file__)+'/encodings.json'
-        self.REGISTERS_FILE = os.path.dirname(__file__)+'/registers.json'
 
         # If step=True, wait for user input before executing next instr
         self.step = step
         self.debug_mode = debug_mode
         self.verbose_prefix = prefix
 
-        #Coprocessors
-        self.CP0 = CP0()
-
-        # Memory
-        self.memory = Memory(CP0)
-
-        # Gen Purpose Registers
-        self.rf = RegisterFile()
-        self.rf.write(name='$gp', val=self.memory.global_pointer)
-        self.rf.write(name='$sp', val=self.memory.stack_base_addr)
-        self.rf.PC = self.memory.text_base_addr
-        print(self.rf.PC)
+        # Load Instruction-Set
+        self.instr_set = InstructionSet()
+        self.instr_set.populate()
 
         # Simulation Modes
         self.SINGLE_INSTRUCTION = 0
         self.DELAY_SLOT = 1
 
-    
+        RF.write('PC', MEM.text_base_addr)
+
     def assemble(self, asm_files: list) -> None:
         self.debug('Assembling files...')
         self.global_symbols = {}
-        self.local_symbols = {} 
+        self.local_symbols = {}
         self.asm_files = asm_files
-        self.m_code = [] # machine code
-        self.a_code = {} # assembly code
-
+        self.m_code = []  # machine code
+        self.a_code = {}  # assembly code
 
         # Clean up asm files and store contents into a_code
         for f in self.asm_files:
@@ -62,7 +54,7 @@ class Simulator:
 
         # Handle any .include directives
         self.__include()
-        
+
         # Create symbol tables for program. also prepare memory
         # addresses for each instruction
         instructions = self.generate_symbols()
@@ -85,7 +77,8 @@ class Simulator:
         for f in self.asm_files:
             # if file has been included in another file, skip
             # this file will be removed from asm_files later
-            if f in included_files: continue
+            if f in included_files:
+                continue
             for i, (line, line_num) in enumerate(self.a_code[f]):
                 if not line.startswith('.include'):
                     continue
@@ -98,19 +91,22 @@ class Simulator:
                     with open(include_filename, 'r') as f_include:
                         # add code from filename to to_include
                         # ([code], i) i is index to add code into
-                        to_include.append((clean_code(f_include.readlines()), i))
+                        to_include.append(
+                            (clean_code(f_include.readlines()), i))
                 except:
                     # Could not open file
-                    raise IncludeDirectiveFileNotFoundError(f, line_num) 
+                    raise IncludeDirectiveFileNotFoundError(f, line_num)
                 if not include_filename in included_files:
                     included_files.append(include_filename)
 
             for code, i in to_include:
-                self.a_code[f] = self.a_code[f][:i] + code + self.a_code[f][i+1:]
+                self.a_code[f] = self.a_code[f][:i] + \
+                    code + self.a_code[f][i+1:]
 
         for f in included_files:
             # Remove any included files from asm_files
-            if f in self.asm_files: self.asm_files.remove(f)
+            if f in self.asm_files:
+                self.asm_files.remove(f)
         return True
 
     def generate_symbols(self) -> None:
@@ -124,16 +120,18 @@ class Simulator:
         text memory addresses and filename.
         """
         sizes = {'.word': WORD, '.half': HWORD, '.byte': BYTE}
-        data_addr = self.memory.data_base_addr
-        extern_addr = self.memory.extern_base_addr
-        in_data = False # Assume we are in text segment until .data read
-        PC_offset = 0 # For assigning each instruction a memory location
-        instructions = [] # list of mips assembly instructions and addr to be stored in
+        data_addr = MEM.data_base_addr
+        extern_addr = MEM.extern_base_addr
+        in_data = False  # Assume we are in text segment until .data read
+        PC_offset = 0  # For assigning each instruction a memory location
+        instructions = []  # list of mips assembly instructions and addr to be stored in
         for f in self.asm_files:
             self.local_symbols[f] = {}
             for line, line_num in self.a_code[f]:
-                if line.startswith('.data'): in_data = True
-                elif line.startswith('.text'): in_data = False
+                if line.startswith('.data'):
+                    in_data = True
+                elif line.startswith('.text'):
+                    in_data = False
                 elif line.startswith('.globl'):
                     label = line.split()[1]
                     if label in self.global_symbols:
@@ -145,27 +143,28 @@ class Simulator:
                         self.global_symbols[label] = self.local_symbols[f][label]
                         del self.local_symbols[f][label]
                     # label has not been defined yet
-                    else: self.global_symbols[label] = None
+                    else:
+                        self.global_symbols[label] = None
                 elif line.startswith('.align'):
                     n = int(line.split()[1])
                     if not 0 <= n <= 2:
                         # Invalid .align value
                         raise InvalidAlignDirectiveError(f, line_num, n)
-                    if (data_addr % 2**n) != 0: 
+                    if (data_addr % 2**n) != 0:
                         data_addr += 2**n - (data_addr % 2**n)
                 elif line.startswith('.extern'):
                     parsed = line.split()
                     label = parsed[1]
                     num_bytes = parsed[2]
                     self.global_symbols[label] = extern_addr
-                    self.debug('Creating extern label {} at mem address'\
-                        ' {} of size {} bytes'.format(label, extern_addr, num_bytes))
+                    self.debug('Creating extern label {} at mem address'
+                               ' {} of size {} bytes'.format(label, extern_addr, num_bytes))
                     for _ in range(int(num_bytes)):
-                        self.memory.write(extern_addr, 0, size=BYTE)
+                        MEM.write(extern_addr, 0, size=BYTE)
                         extern_addr += 1
                 elif line.startswith('.'):
                     raise UnsupportedDirectiveError(f, line_num, line)
-                
+
                 elif not in_data:
                     # text section
                     # add tuple to instructions: (instr, addr, f, orig line number)
@@ -181,14 +180,16 @@ class Simulator:
                             raise LocalSymbolDefinedError(f, line_num, label)
                         if not self.global_symbols.get(label, True):
                             # label exists in global table but is unresolved
-                            self.global_symbols[label] = self.rf.PC + PC_offset
+                            self.global_symbols[label] = RF.PC + PC_offset
                         else:
                             # label does not exist in global table, add it to local
-                            self.local_symbols[f][label] = self.rf.PC + PC_offset
-                    instructions.append((to_add, self.rf.PC + PC_offset, f, line_num))
-                    PC_offset += 4 # PC + offset points to next empty address
+                            self.local_symbols[f][label] = RF.PC + PC_offset
+                    instructions.append(
+                        (to_add, RF.PC + PC_offset, f, line_num))
+                    PC_offset += 4  # PC + offset points to next empty address
 
-                if not ':' in line: continue
+                if not ':' in line:
+                    continue
                 parsed = line.split()
                 if in_data:
                     # labels declared in .data section
@@ -197,275 +198,181 @@ class Simulator:
                     values = parsed[2:]
                     if directive in sizes:
                         # .word, .half, or .byte directives
-                        align = (sizes[directive] // BYTE) # determines alignment
+                        # determines alignment
+                        align = (sizes[directive] // BYTE)
                         if data_addr % align != 0:
                             data_addr += align - (data_addr % align)
                         self.local_symbols[f][label] = data_addr
                         for val in values:
                             if '"' in val:
-                                raise InvalidDataTypeError(f, line_num, 
-                                    message='Cannot store string as word. Must use .ascii or .asciiz')
+                                raise InvalidDataTypeError(f, line_num,
+                                                           message='Cannot store string as word. Must use .ascii or .asciiz')
                             val = val.replace(',', '')
-                            if "'" in val: val = ord(val.replace("'", ''))
-                            else: val = int(val)
-                            self.debug('writing {} into mem at address' \
-                                ' {}'.format(val, data_addr))
-                            self.memory.write(data_addr, val, size=sizes[directive])
+                            if "'" in val:
+                                val = ord(val.replace("'", ''))
+                            else:
+                                val = int(val)
+                            self.debug('writing {} into mem at address'
+                                       ' {}'.format(val, data_addr))
+                            MEM.write(
+                                data_addr, val, size=sizes[directive])
                             data_addr += align
 
                     elif directive == '.ascii' or directive == '.asciiz':
                         self.local_symbols[f][label] = data_addr
                         string = ' '.join(values)
                         string = ast.literal_eval(string)
-                        if directive.endswith('z'): string += '\0'
+                        if directive.endswith('z'):
+                            string += '\0'
                         for char in string:
                             val = ord(char)
-                            self.debug('writing {} ({}) into mem at address' \
-                                ' {}'.format(val, repr(char), data_addr))
-                            self.memory.write(data_addr, val, size=BYTE)
+                            self.debug('writing {} ({}) into mem at address'
+                                       ' {}'.format(val, repr(char), data_addr))
+                            MEM.write(data_addr, val, size=BYTE)
                             data_addr += 1
                     elif directive == '.space':
                         self.local_symbols[f][label] = data_addr
                         val = values[0]
-                        self.debug('reserving {} bytes for {} starting at' \
-                            ' {}'.format(val, label, data_addr))
+                        self.debug('reserving {} bytes for {} starting at'
+                                   ' {}'.format(val, label, data_addr))
                         for _ in range(int(val)):
-                            self.memory.write(data_addr, 0, size=BYTE)
-                            data_addr += 1        
+                            MEM.write(data_addr, 0, size=BYTE)
+                            data_addr += 1
         return instructions
 
     def __assemble(self, program: list):
-        """
-        Helper function for assembling mips instructions into
-        their binary encodings
 
-        Also performs final syntax checks. See errors.py for more details
-        about each exception thrown
-        """
-
-        # helper functions
         def encode_register(reg: str) -> str:
             """
-            Helper function to encode register into binary
-
-            Throws InvalidRegisterError if reg is not a valid register
+            Helper function to encode a register
+            Returns int addr of register or None if failed
             """
             reg = reg.replace(',', '')
-            if not reg in REGISTERS['GPR'] and not reg in REGISTERS['CP0']:
-                raise InvalidRegisterError(filename, line_num, reg)
-            if reg in REGISTERS['GPR']:
-                return Binary.from_int(REGISTERS['GPR'][reg], bits=5)
-            if reg in REGISTERS['CP0']:
-                return Binary.from_int(REGISTERS['CP0'][reg], bits=5)
+            if reg in GP_REGS:
+                return Binary.from_int(GP_REGS[reg], bits=5)
+            if reg in CP0_REGS:
+                return Binary.from_int(CP0_REGS[reg], bits=5)
+            return None
         
-        def encode_immediate(i: str, bits: int, signed=False) -> str:
-            """
-            Helper function to encode an immediate value
-
-            Throws InvalidInstructionFormatError if cannot convert i to int
-            """
+        def encode_immediate(imm: str, bits: int, signed: bool) -> str:
             try:
-                # try converting string to int
-                i = int(i)
+                # Try to read offset as int
+                return Binary.from_int(int(imm), bits=bits, signed=signed)
             except:
-                # try converting hex string to int
                 try:
-                    i = int(i, 16)
+                    # Try to read offset as int from hex
+                    return Binary.from_int(int(imm, 16), bits=bits, signed=signed)
                 except:
-                    # could not read immediate into an int
-                    raise InvalidInstructionFormatError(filename, line_num, i)
-            return Binary.from_int(i, bits=bits, signed=signed)
-        
-        def encode_offset(label, bits):
+                    return None
+
+        def encode_target(target: str, filename, bits: int) -> str:
+            if target in self.global_symbols:
+                return Binary.from_int(self.global_symbols[target], bits=bits)
+            if target in self.local_symbols[filename]:
+                return Binary.from_int(self.local_symbols[filename][target], bits=bits)
+            return None
+
+        def encode_offset(label, filename, addr, bits):
             """
             Helper function to encode the offset for branch instructions
             """
             if label in self.global_symbols:
-                target = self.global_symbols[label]
-            elif label in self.local_symbols[filename]:
-                target = self.local_symbols[filename][label]
-            else:
-                # referenced label not defined in global or local symbol table
-                raise InvalidLabelError(filename, line_num, label)
-            return Binary.from_int(target - addr - 4, bits=bits, signed=True)
+                return Binary.from_int(self.global_symbols[label] - addr - 4, bits=bits, signed=True)
+            if label in self.local_symbols[filename]:
+                return Binary.from_int(self.local_symbols[filename][label] - addr - 4, bits=bits, signed=True)
+            return None
 
-        with open(self.ENCODINGS_FILE, 'r') as f:
-            ENCODINGS = json.load(f)
-        with open(self.REGISTERS_FILE, 'r') as f:
-            REGISTERS = json.load(f)
-
-        for line, addr, filename, line_num in program:
-            parsed = line.split()
-            instr = parsed[0]
-            rs = None
+        for instr, addr, fname, line_num in program:
+            tokens = instr.split() # split instruction by space
+            instr_name = tokens[0] # first element should be instr name
+            instr_info = self.instr_set.get_info(instr_name)
+            if instr_info is None:
+                # Instruction not found in instruction set
+                raise UnsupportedInstructionError(fname, line_num)
+            instr_format = instr_info['format'].split()
+            if len(instr_format) != len(tokens):
+                # Instruction doesn't match format
+                raise InvalidInstructionFormatError(fname, line_num, instr_info)
             rt = None
+            rs = None
             rd = None
-            i16_s = None
-            i16_u = None
-            i21_s = None
-            i26_u = None
             base = None
+            offset = None
+            immediate = None
             sa = None
-            sel = None
-            encoding = None
-            if instr in ENCODINGS['CPU Load/Store']:
-                # instr is a load/store
-                # format: instr $rt, i16_s(base)
-                rt = encode_register(parsed[1])
-                    
-                parsed_address = parsed[2].split('(')
-                if len(parsed_address) != 2:
-                    # invalid format: not i16_s(base)
-                    raise InvalidInstructionFormatError(filename, line_num, parsed[2])
-                i16_s = encode_immediate(parsed_address[0], 16, signed=True)
-                parsed_address[1] = parsed_address[1].replace(')', '')
-                base = encode_register(parsed_address[1])
-                encoding = ENCODINGS['CPU Load/Store'][instr]
-            
-            elif instr in ENCODINGS['ALU i16']:
-                # instr is an ALU instruction that encodes an immediate
-                # format: instr rt, rs, [i16_s, i16_u]
-                rt = encode_register(parsed[1])
-                rs = encode_register(parsed[2])
-                if instr == 'sltiu':
-                    i16_u = encode_immediate(parsed[3], 16, signed=False)
-                else:
-                    i16_s = encode_immediate(parsed[3], 16, signed=True)
-                encoding = ENCODINGS['ALU i16'][instr]
-            
-            elif instr in ENCODINGS['ALU 3-Op']:
-                # instr is ALU instruction with 3 registers
-                # format: instr rd, rs, rt
-                rd = encode_register(parsed[1])
-                rs = encode_register(parsed[2])
-                rt = encode_register(parsed[3])
-                encoding = ENCODINGS['ALU 3-Op'][instr]
-            
-            elif instr in ENCODINGS['ALU 2-Op']:
-                # instr is ALU instruction with 2 registers
-                # format: instr rd, rs
-                rd = encode_register(parsed[1])
-                rs = encode_register(parsed[2])
-                encoding = ENCODINGS['ALU 2-Op'][instr]
-            
-            elif instr in ENCODINGS['Shift']:
-                # instr is a shift instruction
-                # format: instr rd, rt, sa OR instr rd, rt, rs
-                rd = encode_register(parsed[1])
-                rt = encode_register(parsed[2])
-                if instr.endswith('v'):
-                    # shift variable instruction
-                    rs = encode_register(parsed[3])
-                else:
-                    # shift immediate instruction
-                    sa = encode_immediate(parsed[3], 5)
-                encoding = ENCODINGS['Shift'][instr]
-            
-            elif instr in ENCODINGS['Trap i16']:
-                # instr is a trap instruction
-                # format: instr, rs, i16_s
-                rs = encode_register(parsed[1])
-                if instr.endswith('u'): i16_u = encode_immediate(parsed[2], 16, signed=False)
-                else: i16_s = encode_immediate(parsed[2], 16, signed=True)
-                encoding = ENCODINGS['Trap i16'][instr]
-            
-            elif instr in ENCODINGS['CP Move']:
-                # instr moves value in CP0 register into GPR
-                # format: instr rt, rd OR  instr rt, rd, sel
-                rt = encode_register(parsed[1])
-                rd = encode_register(parsed[2])
-                if len(parsed) == 4:
-                    sel = encode_immediate(parsed[3], 3, signed=False)
-                encoding = ENCODINGS['CP Move'][instr]
-            
-            elif instr in ENCODINGS['Jump']:
-                # instr is j, jal, or jalr
-                if instr == 'jalr':
-                    if len(parsed) == 2:
-                        rs = encode_register(parsed[1])
-                        rd = Binary.from_int(31, bits=5)
-                    elif len(parsed) == 3:
-                        rd = encode_register(parsed[1])
-                        rs = encode_register(parsed[2])
-                    else:
-                        raise InvalidInstructionFormatError(filename, line_num, line)
-                else:
-                    # instr is j or jal
-                    self.warning('Deprecated function {}. Use bc or balc'.format(instr))
-                    if parsed[1] in self.global_symbols:
-                        i26_u = Binary.from_int(self.global_symbols[parsed[1]], bits=26)
-                    elif parsed[1] in self.local_symbols[filename]:
-                        i26_u = Binary.from_int(self.local_symbols[filename][parsed[1]], bits=26)
-                    else:
-                        raise InvalidLabelError(filename, line_num, parsed[1])
-                encoding = ENCODINGS['Jump'][instr]
+            target = None
+            for i, var in enumerate(instr_format[1:]):
+                # loop through formatting of instruction to correctly
+                # extract registers and immediates
+                var = var.replace(',', '')
+                if var == 'rt':
+                    rt = encode_register(tokens[i+1])
+                    if rt is None:
+                        raise InvalidRegisterError(fname, line_num, tokens[i+1])
+                
+                elif var == 'rs':
+                    rs = encode_register(tokens[i+1])
+                    if rs is None:
+                        raise InvalidRegisterError(fname, line_num, tokens[i+1])
+                
+                elif var == 'rd':
+                    rd = encode_register(tokens[i+1])
+                    if rd is None:
+                        raise InvalidRegisterError(fname, line_num, tokens[i+1])
 
-            elif instr in ENCODINGS['Indexed Jumps']:
-                # instr is jic or jialc
-                # format: instr rt, i16_s
-                rt = encode_register(parsed[1])
-                i16_s = encode_offset(parsed[2], 16)
-                encoding = ENCODINGS['Indexed Jumps'][instr]
-            
-            elif instr in ENCODINGS['Unconditional Branch']:
-                # instr is an unconditional branch instruction
-                # format: instr i26_s
-                i26_s = encode_offset(parsed[1], 26)
-                encoding = ENCODINGS['Unconditional Branch'][instr]
-            
-            elif instr in ENCODINGS['Compact Branch Zero 21']:
-                # instr is a compact branch comparing with zero and an offset of 21 bits
-                # format: instr rt, i21_s
-                rt = encode_register(parsed[1])
-                i21_s = encode_offset(parsed[2], 21)
-                encoding = ENCODINGS['Compact Branch Zero 21'][instr]
-            
-            elif instr in ENCODINGS['Compact Branch Zero 16']:
-                # instr is a compact branch comparing with zero and an offset of 16 bits
-                # format: instr rt, i16_s
-                rt = encode_register(parsed[1])
-                i16_s = encode_offset(parsed[2])
-                encoding = ENCODINGS['Compact Branch Zero 16'][instr]
-            
-            elif instr in ENCODINGS['Branch 2-Reg']:
-                # instr is a branch comparing 2 GPR values
-                # format: instr rs, rt, i16_s
-                rs = encode_register(parsed[1])
-                rt = encode_register(parsed[2])
-                i16_s = encode_offset(parsed[3])
-                encoding = ENCODINGS['Branch 2-Reg'][instr]
-            
-            elif instr in ENCODINGS['Branch Zero']:
-                # instr is a branch comparing a GPR value with zero
-                # format: instr rs, i16_s
-                rs = encode_register(parsed[1])
-                i16_s = encode_offset(parsed[2])
-                encoding = ENCODINGS['Branch Zero'][instr]
+                elif var == 'offset(base)':
+                    parsed = tokens[i+1].split('(')
+                    base = parsed[1].replace(')', '')
+                    base = encode_register(base)
+                    if base is None:
+                        raise InvalidRegisterError(fname, line_num, base)
+                    offset = encode_immediate(parsed[0], instr_info['immediate length'], True)
+                    if offset is None:
+                        raise InvalidInstructionFormatError(fname, line_num, parsed[0])
 
-            elif instr in ENCODINGS['Static']:
-                encoding = ENCODINGS['Static'][instr]
-            
-            else:
-                #raise UnsupportedInstructionError(filename, line_num)
-                continue
-            binary_code = encoding.format(rs=rs, rt=rt, rd=rd, i16_s=i16_s, 
-                i16_u=i16_u, base=base, sa=sa, i21_s=i21_s, i26_u=i26_u, sel=sel)
-            bin_code_int = int(binary_code, 2)
-            self.m_code.append((binary_code, addr))
-            self.debug('Writing instruction {} ({}) into memory at address {}'.format(binary_code, bin_code_int, addr))
-            #self.mem_write(addr, binary_code)
-            self.memory.write(addr, bin_code_int, size=WORD)
+                elif var == 'immediate':
+                    immediate = encode_immediate(tokens[i+1], instr_info['immediate length'], True)
+                    if immediate is None:
+                        raise InvalidInstructionFormatError(fname, line_num, tokens[i+1])
 
+                elif var == 'sa':
+                    sa = encode_immediate(tokens[i+1], instr_info['immediate length'], False)
+                    if sa is None:
+                        raise InvalidInstructionFormatError(fname, line_num, tokens[i+1])
+
+                elif var == 'target':
+                    target = encode_target(tokens[i+1], fname, instr_info['immediate length'])
+                    if target is None:
+                        raise InvalidLabelError(fname, line_num, tokens[i+1])
+
+                elif var == 'offset':
+                    offset = encode_offset(tokens[i+1], fname, addr, instr_info['immediate length'])
+                    if offset is None:
+                        raise InvalidLabelError(fname, line_num, tokens[i+1]) 
+            
+            machine_instr = instr_info['encoding'].format(rt=rt, rs=rs, rd=rd, sa=sa, base=base, offset=offset, immediate=immediate, target=target)
+            MEM.write(addr, int(machine_instr, 2), WORD)
+            self.m_code.append(int(machine_instr, 2))
+            self.debug('Wrote Instruction {} into mem[{}]'.format(machine_instr, addr))
+
+    def simulate(self) -> None:
+        cnt = 0
+        while cnt < len(self.m_code):
+            instruction = MEM.read_word(RF.PC)
+            print(Binary.from_int(instruction), self.instr_set.instr_from_encoding(instruction))
+            cnt += 1
+            RF.increment_pc()
+    
     def debug(self, message: str) -> None:
         if self.debug_mode:
             print('{}[DEBUG] {}'.format(self.verbose_prefix, message))
 
     def warning(self, message: str) -> None:
         print('{}[WARNING] {}'.format(self.verbose_prefix, message))
-    
+
     def error(self, message: str) -> None:
         print('{}[ERROR] {}'.format(self.verbose_prefix, message))
-    
+
     def bar(self) -> None:
         print('-'*50)
 
@@ -473,4 +380,3 @@ class Simulator:
         print('-------Registers-------')
         self.rf.print(radix)
         print('-----------------------')
-    

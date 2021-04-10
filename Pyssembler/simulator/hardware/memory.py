@@ -1,11 +1,25 @@
 import json
 import os.path
 
-from ..utils import BIT, BYTE, HWORD, WORD
-from ..utils import WORD_LENGTH_BYTES, HWORD_LENGTH_BYTES
-from ..utils import MAX_UINT32, MIN_SINT32
+__MEMORY_CONFIG_FILE__ = os.path.dirname(__file__)+'/memory_config.json'
+BIT = 1
+BYTE = 8
+HWORD = 16
+WORD = 32
+WORD_LENGTH_BYTES = WORD // BYTE
+HWORD_LENGTH_BYTES = HWORD // BYTE
 
-MEMORY_CONFIG_FILE = os.path.dirname(__file__)+'/../memory_config.json'
+MAX_UINT32 = 0xFFFFFFFF
+MAX_SINT32 = 0x7FFFFFFF
+MIN_SINT32 = -0x80000000
+
+MAX_UINT16 = 0XFFFF
+MAX_SINT16 = 0x7FFF
+MIN_SINT16 = -0x8000
+
+MAX_UINT8 = 0xFF
+MAX_SINT8 = 0x7F
+MIN_SINT8 = -0x80
 
 
 class Memory:
@@ -23,18 +37,17 @@ class Memory:
     Needs the CP0 object created in the simulator object for determining if
     in user or kernel mode
     """
-    def __init__(self, CP0) -> None:
 
-        self.CP0 = CP0 #Coprosser 0
+    def __init__(self) -> None:
 
         # Declare different segments of memory
         self.config = {}
-        with open(MEMORY_CONFIG_FILE, 'r') as f:
+        with open(__MEMORY_CONFIG_FILE__, 'r') as f:
             self.config = json.load(f)
 
         # MIPS32 uses 32-bit addresses for memory
         # Memory is broken up into the following sections:
-        
+
         # memory mapped I/O section
         self.mmio_base_addr = int(self.config['MMIO base address'], 16)
         self.mmio_limit_addr = int(self.config['MMIO limit address'], 16)
@@ -54,7 +67,7 @@ class Memory:
         self.extern_limit_addr = int(self.config['extern limit address'], 16)
         # user data section
         self.data_base_addr = int(self.config['data base address'], 16)
-        # starting heap address 
+        # starting heap address
         self.heap_base_addr = int(self.config['heap base address'], 16)
         self.heap_pointer = self.heap_base_addr
         # boundary between stack and heap
@@ -64,11 +77,11 @@ class Memory:
         # max memory address
         self.memory_limit = int(self.config['memory limit'], 16)
         # starting address for $gp
-        self.global_pointer = int(self.config['global pointer'], 16)       
+        self.global_pointer = int(self.config['global pointer'], 16)
 
         self.memory = {}
-    
-    def read_word(self, addr: int) -> int:
+
+    def read_word(self, addr: int, signed=False) -> int:
         """
         Read a word from memory starting at addr
         """
@@ -80,9 +93,11 @@ class Memory:
             addr = addr - WORD_LENGTH_BYTES + 1
         for i, val_byte in enumerate(self._read_bytes(addr, WORD_LENGTH_BYTES)):
             val = ((val_byte << WORD-(i*BYTE)-BYTE) & (mask >> i*BYTE)) | val
+        if signed and self.is_negative(val, 32):
+            return (MAX_UINT32 - val + 1)*-1
         return val
-    
-    def read_hword(self, addr: int) -> int:
+
+    def read_hword(self, addr: int, signed=False) -> int:
         """
         Read a half word from memory starting at addr
         """
@@ -94,13 +109,18 @@ class Memory:
             addr = addr - HWORD_LENGTH_BYTES + 1
         for i, val_byte in enumerate(self._read_bytes(addr, HWORD_LENGTH_BYTES)):
             val = ((val_byte << HWORD-(i*BYTE)-BYTE) & (mask >> i*BYTE)) | val
+        if signed and self.is_negative(val, 16):
+            return (MAX_UINT16 - val + 1)*-1
         return val
-    
-    def read_byte(self, addr: int) -> int:
+
+    def read_byte(self, addr: int, signed=False) -> int:
         """
         Read a byte from memory starting at addr
         """
-        return self.memory.get(addr, 0)
+        val = self.memory.get(addr, 0)
+        if signed and self.is_negative(val, 8):
+            return (MAX_UINT8 - val + 1)*-1
+        return val
 
     def _read_bytes(self, addr: int, num_bytes: int) -> list:
         """
@@ -112,7 +132,7 @@ class Memory:
         for i in range(num_bytes):
             val_bytes.append(self.memory.get(addr+i, 0))
         return val_bytes
-    
+
     def write(self, addr: int, val: int, size: int) -> None:
         """
         Writes a value into simulated memory starting at addr
@@ -124,10 +144,6 @@ class Memory:
             raise ValueError('Address is not naturally aligned')
         if not 0 <= addr <= MAX_UINT32:
             raise ValueError('Address out of bounds')
-        if self.CP0.user_mode == 1:
-            # user mode
-            if not self.in_user_memory(addr):
-                raise ValueError('Cannot write to kernel memory in user mode')
         masks = {WORD: 0xFF000000, HWORD: 0x0000FF00, BYTE: 0x000000FF}
 
         val_bytes = []
@@ -138,7 +154,7 @@ class Memory:
             self._write_bytes(addr-len(val_bytes)+1, val_bytes)
         else:
             self._write_bytes(addr, val_bytes)
-        
+
     def _write_bytes(self, addr: int, val_bytes: list) -> None:
         """
         Helper function for writing bytes to memory
@@ -154,20 +170,20 @@ class Memory:
     def allocate_bytes_in_heap(self, num_bytes: int) -> int:
         """
         Returns address of next word-aligned heap address
- 
+
         if num_bytes is not word aligned, allocates additional bytes to
         make num_bytes word aligned
         """
         address = self.heap_pointer
-        while ((num_bytes-1)//4 != 0): num_bytes += 1
+        while ((num_bytes-1)//4 != 0):
+            num_bytes += 1
 
         self.heap_pointer += num_bytes
         return address
 
-
     def get_modified_addresses(self) -> list:
         return list(self.memory.keys())
-    
+
     def dump(self, radix=int) -> dict:
         """
         Dumps memory
@@ -175,12 +191,17 @@ class Memory:
         formatting = {int: '{}', hex: '0x{:02x}', bin: '{:08b}'}
         dumped = {}
         for addr in self.memory:
-            if addr % 4 == 0:  
+            if addr % 4 == 0:
                 dumped[addr] = []
                 for i in range(4):
-                    val = formatting[radix].format(self.memory.get(addr+i, 0), 2)
+                    val = formatting[radix].format(
+                        self.memory.get(addr+i, 0), 2)
                     dumped[addr].append(val)
         return dumped
+    
+    def is_negative(self, val: int, size: int):
+        mask = 2**(size-1)
+        return ((val & mask) >> size-1) == 1
 
     # Helper functions for determining which memory segment an address is in
     def in_user_memory(self, addr: int) -> bool:
@@ -207,3 +228,6 @@ class Memory:
     def in_data_segment(self, addr: int) -> bool:
         return self.data_base_addr <= addr < self.stack_heap_boundary
 
+if __name__ == '__main__':
+    mem = Memory()
+    print(mem.is_negative(0xFFFFFF85, 32))

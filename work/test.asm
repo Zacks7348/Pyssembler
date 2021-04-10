@@ -21,13 +21,13 @@ loop:
 	lw	$t0, 12($sp)	#
 
 	addiu	$t0, $t0, 1	# increment index;
-	blt	$t0, $t1, loop	#
+	#blt	$t0, $t1, loop	#
 
 	lw	$fp, 16($s5)	# restore frame pointer
 	lw	$ra, 24($sp)	# restore return address
 	addiu	$sp, $sp, 32	# restore stack pointer
 
-	jr	$ra
+	jalr	$ra
 
 
 print_num:
@@ -53,7 +53,7 @@ print_num:
 	lw	$fp, 16($sp)
 	addiu	$sp, $sp, 32
 
-	jr	$ra		# jump to return address
+	jalr	$ra		# jump to return address
 
 	# Start .data segment (data!)
 	.data
