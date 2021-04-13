@@ -6,9 +6,7 @@ import ast
 from .utils import clean_code
 from .utils import Binary, Integer
 from .utils import WORD, HWORD, BYTE, BIT
-from .hardware import MEM, RF, CP0
-from .hardware import GP_REGS, CP0_REGS
-from Pyssembler.simulator.instruction import InstructionSet
+from ..mips import MEM, RF, CP0, GP_REGS, CP0_REGS, INSTR_SET
 from .errors import *
 
 
@@ -30,8 +28,7 @@ class Simulator:
         self.verbose_prefix = prefix
 
         # Load Instruction-Set
-        self.instr_set = InstructionSet()
-        self.instr_set.populate()
+        INSTR_SET.populate()
 
         # Simulation Modes
         self.SINGLE_INSTRUCTION = 0
@@ -285,7 +282,7 @@ class Simulator:
         for instr, addr, fname, line_num in program:
             tokens = instr.split() # split instruction by space
             instr_name = tokens[0] # first element should be instr name
-            instr_info = self.instr_set.get_info(instr_name)
+            instr_info = INSTR_SET.get_info(instr_name)
             if instr_info is None:
                 # Instruction not found in instruction set
                 raise UnsupportedInstructionError(fname, line_num)
@@ -359,7 +356,7 @@ class Simulator:
         cnt = 0
         while cnt < len(self.m_code):
             instruction = MEM.read_word(RF.PC)
-            print(Binary.from_int(instruction), self.instr_set.instr_from_encoding(instruction))
+            print(Binary.from_int(instruction), INSTR_SET.best_match(instruction))
             cnt += 1
             RF.increment_pc()
     

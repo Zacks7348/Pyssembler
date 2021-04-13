@@ -1,8 +1,6 @@
-import os
-import json
 from enum import Enum
 
-from .errors import *
+from .mips_exceptions import *
 
 
 class InstructionType(Enum):
@@ -20,10 +18,18 @@ class InstructionSet:
 
     def __init__(self):
         self.instructions = {}
-        self.OP_MASK = 0xFC000000
+        self.OP_MASK = (0xFC000000, 26)
         self.FUNC_MASK = 0x0000003F
+        self.REG1_MASK = (0x03E00000, 21)
+        self.REG2_MASK = (0x001F0000, 16)
+        self.REG3_MASK = (0x0000F800, 11)
+        self.I16_MASK = 0x0000FFFF
 
-    def instr_from_encoding(self, instr: int):
+    def best_match(self, instr: int):
+        """
+        Tries to match a binary instruction with 
+        a mnemonic 
+        """
         best_match = None
         best_match_num = 0
         instr_op = (instr & self.OP_MASK) >> 26
@@ -863,3 +869,54 @@ class InstructionSet:
             'op': 0b000000,
             'func': 0b110110,
             'unique': None}
+
+    def get_op(self, instr: int) -> int:
+        """
+        Returns the op code of the binary instruction
+        """
+        return (instr & self.OP_MASK) >> 26
+    
+    def get_func(self, instr: int) -> int:
+        """
+        Returns func code of the binary instruction
+        """
+        return instr & self.FUNC_MASK
+    
+    def get_reg1(self, instr: int) -> int:
+        """
+        Return bits 25-21 from instr
+        """
+        return (instr & self.REG1_MASK[0]) >> self.REG1_MASK[1]
+    
+    def get_reg2(self, instr: int) -> int:
+        """
+        Return bits 20-16 from instr
+        """
+        return (instr & self.REG2_MASK[0]) >> self.REG2_MASK[1]
+    
+    def get_reg3(self, instr: int) -> int:
+        """
+        Return bits 15-11 from instr
+        """
+        return (instr & self.REG3_MASK[0]) >> self.REG3_MASK[1]
+    
+    def get_i16(self, instr: int) -> int:
+        """
+        Return 16-bit immediate from instr
+        """
+        return instr & self.I16_MASK
+
+    # The following functions are used to execute the different mips instructions
+
+    def load_store(self, instr: int):
+        """
+        Simulates load/store instructions
+        """
+        instr_op = self.get_op(instr)
+        base = self.get_reg1(instr)
+        rt = self.get_reg2(instr)
+        offset = self.get_i16(instr)
+        
+        if instr_op == self.instructions['lb']['op']:
+            # LB
+            pass
