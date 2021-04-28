@@ -27,9 +27,6 @@ class Simulator:
         self.debug_mode = debug_mode
         self.verbose_prefix = prefix
 
-        # Load Instruction-Set
-        INSTR_SET.populate()
-
         # Simulation Modes
         self.SINGLE_INSTRUCTION = 0
         self.DELAY_SLOT = 1
@@ -357,6 +354,7 @@ class Simulator:
         while cnt < len(self.m_code):
             instruction = MEM.read_word(RF.PC)
             print(Binary.from_int(instruction), INSTR_SET.best_match(instruction))
+            INSTR_SET.simulate_instr(instruction)
             cnt += 1
             RF.increment_pc()
     

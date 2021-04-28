@@ -1,4 +1,4 @@
 from .hardware import *
-from .instructions import InstructionSet
+from .instruction_set import InstructionSet
 
 INSTR_SET = InstructionSet()
