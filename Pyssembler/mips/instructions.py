@@ -1,19 +1,23 @@
-from .hardware import RF, MEM, CP0
+from Pyssembler.simulator.errors import InvalidRegisterError
+from .hardware import RF, MEM, CP0, GP_REGS, CP0_REGS
 from .utils import Integer
 
-import sys, inspect
+import sys
+import inspect
+from typing import Union
+
 
 def setup_instructions():
     """
     Returns a dict of all instruction objects declared in this file
     """
-    #TODO: Return dict of all instr objects
     instructions = {}
     exclude = ['Instruction', 'RTypeInstruction']
     for name, obj in inspect.getmembers(sys.modules[__name__]):
-        if inspect.isclass(obj) and not name in exclude:
+        if inspect.isclass(obj) and not name in exclude and issubclass(obj, Instruction):
             instructions[name.lower()] = obj()
     return instructions
+
 
 class Instruction:
     """
@@ -30,10 +34,15 @@ class Instruction:
     def __str__(self) -> str:
         return 'MIPS32 INSTRUCTION: '+self.mnemonic
 
+    def __repr__(self) -> str:
+        return 'MIPS32 INSTRUCTION: mnemonic={}, formatting={}, encoding={}'.format(self.mnemonic, self.format, self.encoding)
+
 
 class RTypeInstruction(Instruction):
     """
     Base class for all R-type instructions
+
+    This inherits from `Instruction`
     """
 
     def __init__(self, mnemonic, op, func, encoding, instr_format, description) -> None:
@@ -41,7 +50,34 @@ class RTypeInstruction(Instruction):
         self.func = func
 
     def match(self, instr: int):
+        """
+        Check if passed instruction's op and func codes are the same as ours. 
+
+        Generic check for R-Type instructions
+        """
         return self.op == Integer.get_bits(instr, 26, 31) and self.func == Integer.get_bits(instr, 0, 5)
+
+    def encode(self, instr: str) -> Union[str, tuple]:
+        """
+        Generic function to encode a R-Type instruction (3 register instruction).
+
+        If something went wrong, return error and what caused it. Up to caller
+        to handle error 
+        """
+        tokens = instr.split()
+        if tokens[0] != self.mnemonic:
+            # instr is not us
+            raise ValueError('Cannot encode {} as {}'.format(instr, self))
+        rd = _encode_register(tokens[1])
+        if rd is None:
+            return InvalidRegisterError, tokens[1]
+        rs = _encode_register(tokens[2])
+        if rs is None:
+            return InvalidRegisterError, tokens[2]
+        rt = _encode_register(tokens[3])
+        if rt is None:
+            return InvalidRegisterError, tokens[3]
+        return self.encoding.format(rd=rd, rs=rs, rt=rt)
 
 
 class Add(RTypeInstruction):
@@ -486,3 +522,16 @@ class Tne(RTypeInstruction):
 
 #     def __init__(self, mnemonic, op, encoding, instr_format, description) -> None:
 #         super().__init__(mnemonic, op, encoding, instr_format, description)
+
+
+def _encode_register(reg: str):
+    """
+    Helper function to encode a register
+    Returns int addr of register or None if failed
+    """
+    reg = reg.replace(',', '')
+    if reg in GP_REGS:
+        return Integer.to_bin_string(GP_REGS[reg], bits=5)
+    if reg in CP0_REGS:
+        return Integer.to_bin_string(CP0_REGS[reg], bits=5)
+    return None

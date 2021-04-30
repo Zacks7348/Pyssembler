@@ -31,11 +31,11 @@ class Integer:
         return c_uint32(int(b, 2)).value
     
     @staticmethod
-    def to_bin_string(i: int):
+    def to_bin_string(i: int, bits=32):
         """
         Converts ints into signed and unsigned binary strings
         """
-        return '{:032b}'.format(c_uint32(i).value)
+        return '{:032b}'.format(c_uint32(i).value)[32-bits:]
     
     @staticmethod
     def get_bits(i: int, low: int, high: int, signed=False) -> int:
