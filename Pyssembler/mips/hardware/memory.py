@@ -1,233 +1,452 @@
 import json
 import os.path
+from ctypes import c_int32, c_uint32, c_int8
+
+from .errors import MemoryError
+from .types import DataType
+from ..utils import Integer
 
 __MEMORY_CONFIG_FILE__ = os.path.dirname(__file__)+'/memory_config.json'
-BIT = 1
-BYTE = 8
-HWORD = 16
-WORD = 32
-WORD_LENGTH_BYTES = WORD // BYTE
-HWORD_LENGTH_BYTES = HWORD // BYTE
-
-MAX_UINT32 = 0xFFFFFFFF
-MAX_SINT32 = 0x7FFFFFFF
-MIN_SINT32 = -0x80000000
-
-MAX_UINT16 = 0XFFFF
-MAX_SINT16 = 0x7FFF
-MIN_SINT16 = -0x8000
-
-MAX_UINT8 = 0xFF
-MAX_SINT8 = 0x7F
-MIN_SINT8 = -0x80
+__verbose__ = 0
 
 
-class Memory:
+def __log(message: str, verbose: int):
+    # Shortcut for logging verbose messages
+    if __verbose__ >= verbose:
+        print('[MEMORY] {message}'.format(message=message))
+
+
+class MemoryConfig:
     """
-    Represents Pyssembler memory. Inspired by SPIM and MIPS
-
-    Implemented memory as a dictionary rather than singular list. 
-    Assume all valid memory addresses that aren't keys in the dictionary
-    point to trash (initial values are 0).
-
-    All addresses must be word-aligned.
-
-    All values are stored in memory in little-endian order.
-
-    Needs the CP0 object created in the simulator object for determining if
-    in user or kernel mode
+    Class that stores memory config
     """
-
-    def __init__(self) -> None:
-
-        # Declare different segments of memory
-        self.config = {}
-        with open(__MEMORY_CONFIG_FILE__, 'r') as f:
-            self.config = json.load(f)
+    with open(__MEMORY_CONFIG_FILE__, 'r') as f:
+        config = json.load(f)
 
         # MIPS32 uses 32-bit addresses for memory
         # Memory is broken up into the following sections:
 
         # memory mapped I/O section
-        self.mmio_base_addr = int(self.config['MMIO base address'], 16)
-        self.mmio_limit_addr = int(self.config['MMIO limit address'], 16)
+        mmio_base_addr = int(config['MMIO base address'], 16)
+        mmio_limit_addr = int(config['MMIO limit address'], 16)
         # kernel data section
-        self.kdata_base_addr = int(self.config['kdata base address'], 16)
-        self.kdata_limit_addr = int(self.config['kdata limit address'], 16)
+        kdata_base_addr = int(config['kdata base address'], 16)
+        kdata_limit_addr = int(config['kdata limit address'], 16)
         # kernel text section
-        self.ktext_base_addr = int(self.config['ktext base address'], 16)
-        self.ktext_limit_addr = int(self.config['ktext limit address'], 16)
+        ktext_base_addr = int(config['ktext base address'], 16)
+        ktext_limit_addr = int(config['ktext limit address'], 16)
         # stack section
-        self.stack_base_addr = int(self.config['stack base address'], 16)
+        stack_base_addr = int(config['stack base address'], 16)
         # user text section
-        self.text_base_addr = int(self.config['text base address'], 16)
-        self.text_limit_addr = int(self.config['text limit address'], 16)
+        text_base_addr = int(config['text base address'], 16)
+        text_limit_addr = int(config['text limit address'], 16)
         # part of user data section reserved for .extern symbols
-        self.extern_base_addr = int(self.config['extern base address'], 16)
-        self.extern_limit_addr = int(self.config['extern limit address'], 16)
+        extern_base_addr = int(config['extern base address'], 16)
+        extern_limit_addr = int(config['extern limit address'], 16)
         # user data section
-        self.data_base_addr = int(self.config['data base address'], 16)
+        data_base_addr = int(config['data base address'], 16)
         # starting heap address
-        self.heap_base_addr = int(self.config['heap base address'], 16)
-        self.heap_pointer = self.heap_base_addr
+        heap_base_addr = int(config['heap base address'], 16)
+        heap_pointer = heap_base_addr
         # boundary between stack and heap
-        self.stack_heap_boundary = int(self.config['stack-heap boundary'], 16)
+        stack_heap_boundary = int(config['stack-heap boundary'], 16)
         # max address user can write to in memory
-        self.user_memory_limit = int(self.config['user memory limit'], 16)
+        user_memory_limit = int(config['user memory limit'], 16)
         # max memory address
-        self.memory_limit = int(self.config['memory limit'], 16)
+        memory_limit = int(config['memory limit'], 16)
         # starting address for $gp
-        self.global_pointer = int(self.config['global pointer'], 16)
+        global_pointer = int(config['global pointer'], 16)
 
-        self.memory = {}
 
-    def read_word(self, addr: int, signed=False) -> int:
-        """
-        Read a word from memory starting at addr
-        """
-        if addr % WORD_LENGTH_BYTES != 0:
-            raise ValueError('Address is not naturally aligned')
-        mask = 0xFF000000
-        val = 0 & mask
-        if self.in_stack_segment(addr):
-            addr = addr - WORD_LENGTH_BYTES + 1
-        for i, val_byte in enumerate(self._read_bytes(addr, WORD_LENGTH_BYTES)):
-            val = ((val_byte << WORD-(i*BYTE)-BYTE) & (mask >> i*BYTE)) | val
-        if signed and self.is_negative(val, 32):
-            return (MAX_UINT32 - val + 1)*-1
-        return val
+class MemorySize:
+    """
+    Stores some useful memory size values
+    """
+    BIT = 1
+    BYTE = 8
+    HWORD = 16
+    WORD = 32
+    WORD_LENGTH_BYTES = WORD // BYTE
+    HWORD_LENGTH_BYTES = HWORD // BYTE
+    BYTE_LENGTH_BYTES = BYTE // BYTE
 
-    def read_hword(self, addr: int, signed=False) -> int:
-        """
-        Read a half word from memory starting at addr
-        """
-        if addr % HWORD_LENGTH_BYTES != 0:
-            raise ValueError('Address is not naturally aligned')
-        mask = 0x0000FF00
-        val = 0 & mask
-        if self.in_stack_segment(addr):
-            addr = addr - HWORD_LENGTH_BYTES + 1
-        for i, val_byte in enumerate(self._read_bytes(addr, HWORD_LENGTH_BYTES)):
-            val = ((val_byte << HWORD-(i*BYTE)-BYTE) & (mask >> i*BYTE)) | val
-        if signed and self.is_negative(val, 16):
-            return (MAX_UINT16 - val + 1)*-1
-        return val
 
-    def read_byte(self, addr: int, signed=False) -> int:
-        """
-        Read a byte from memory starting at addr
-        """
-        val = self.memory.get(addr, 0)
-        if signed and self.is_negative(val, 8):
-            return (MAX_UINT8 - val + 1)*-1
-        return val
+__mem = {}  # Represents 32 bit memory
 
-    def _read_bytes(self, addr: int, num_bytes: int) -> list:
-        """
-        Reads bytes from memory starting at addr
 
-        Returns list of bytes in order of read
-        """
-        val_bytes = []
-        for i in range(num_bytes):
-            val_bytes.append(self.memory.get(addr+i, 0))
-        return val_bytes
+def set_verbose(verbose: int) -> None:
+    """
+    Set the verbose level for memory actions
 
-    def write(self, addr: int, val: int, size: int) -> None:
-        """
-        Writes a value into simulated memory starting at addr
-        addr must be naturally aligned with size
-        """
-        if not size in (WORD, HWORD, BYTE):
-            raise ValueError('Value must be of size WORD, HWOWRD or BYTE')
-        if (addr % (size // BYTE)) != 0:
-            raise ValueError('Address is not naturally aligned')
-        if not 0 <= addr <= MAX_UINT32:
-            raise ValueError('Address out of bounds')
-        masks = {WORD: 0xFF000000, HWORD: 0x0000FF00, BYTE: 0x000000FF}
+    Parameters
+    ----------
+    verbose : int
+        Verbose level (0-None, 1-Basic, 2-All)
+    """
+    global __verbose__
+    if not 0 <= verbose <= 2:
+        raise ValueError('Invalid MEM verbose value')
+    __verbose__ = verbose
 
-        val_bytes = []
-        for i in range(0, size, BYTE):
-            val_bytes.append((val & (masks[size] >> i)) >> size-i-BYTE)
+# These are some helper functions for address verification
 
-        if self.in_stack_segment(addr):
-            self._write_bytes(addr-len(val_bytes)+1, val_bytes)
+
+def is_valid_addr(addr: int) -> bool:
+    """
+    Returns true if addr is a valid 32 bit memory address
+
+    Parameters
+    ----------
+    addr : int
+        Address to test
+    """
+    return 0 <= addr <= MemoryConfig.memory_limit
+
+
+def in_user_memory(addr: int) -> bool:
+    """
+    Returns true if addr is in user memory, otherwise false
+
+    User memory consists of Text, Static/Dynamic data and Stack memory segments
+
+    Parameters
+    ----------
+    addr : int
+        Address to test
+    """
+    return MemoryConfig.text_base_addr <= addr < MemoryConfig.ktext_base_addr
+
+
+def in_MMIO_segment(addr: int) -> bool:
+    """
+    Returns true if addr is in MMIO memory segment, otherwise false
+
+    Parameters
+    ----------
+    addr : int
+        Address to test
+    """
+    return MemoryConfig.mmio_base_addr <= addr < MemoryConfig.mmio_limit_addr
+
+
+def in_kdata_segment(addr: int) -> bool:
+    """
+    Returns true if addr is in Kernel Data memory segment, otherwise false
+
+    Parameters
+    ----------
+    addr : int
+        Address to test
+    """
+    return MemoryConfig.kdata_base_addr <= addr < MemoryConfig.kdata_limit_addr
+
+
+def in_ktext_segment(addr: int) -> bool:
+    """
+    Returns true if addr is in Kernel Text memory segment, otherwise false
+
+    Parameters
+    ----------
+    addr : int
+        Address to test
+    """
+    return MemoryConfig.ktext_base_addr <= addr < MemoryConfig.ktext_limit_addr
+
+
+def in_stack_segment(addr: int) -> bool:
+    """
+    Returns true if addr is in Stack memory segment, otherwise false
+
+    Parameters
+    ----------
+    addr : int
+        Address to test
+    """
+    return MemoryConfig.stack_base_addr >= addr > MemoryConfig.stack_heap_boundary
+
+
+def in_text_segment(addr: int) -> bool:
+    """
+    Returns true if addr is in User Text memory segment, otherwise false
+
+    Parameters
+    ----------
+    addr : int
+        Address to test
+    """
+    return MemoryConfig.text_base_addr <= addr < MemoryConfig.text_limit_addr
+
+
+def in_extern_segment(addr: int) -> bool:
+    """
+    Returns true if addr is in Extern memory segment, otherwise false
+
+    Extern memory is located in the lower Static Data memory segment
+
+    Parameters
+    ----------
+    addr : int
+        Address to test
+    """
+    return MemoryConfig.extern_base_addr <= addr < MemoryConfig.extern_limit_addr
+
+
+def in_data_segment(addr: int) -> bool:
+    """
+    Returns true if addr is in User Data memory segment, otherwise false
+
+    Parameters
+    ----------
+    addr : int
+        Address to test
+    """
+    return MemoryConfig.data_base_addr <= addr < MemoryConfig.stack_heap_boundary
+
+
+def is_aligned(addr: int, alignment: int) -> bool:
+    """
+    Returns true if addr is naturally aligned with alignment value
+
+    An address is aligned if addr % alignment == 0
+
+    Parameters
+    ----------
+    addr : int
+        Address to be tested
+    alignment : int
+        Values addr must be aligned with
+    """
+    return addr % (alignment // MemorySize.BYTE) == 0
+
+
+def __write_bytes(addr: int, byte_list) -> None:
+    """
+    Helper function for writing a list of bytes into memory starting at addr
+    """
+
+    for offset, byte in enumerate(byte_list):
+        write_addr = addr+offset
+        if not is_valid_addr(write_addr):
+            raise MemoryError(
+                'Address {} is not a valid 32 bit address'.format(write_addr))
+        __log('Writing {} into MEM[{}]'.format(byte, write_addr), 2)
+        __mem[write_addr] = byte
+
+
+def write(addr: int, val: int, size: int) -> None:
+    """
+    Write a value into 32 bit memory
+
+    Address must be naturally aligned with size
+
+    Parameters
+    ----------
+    addr : int
+        Address to start writing at
+    val : int
+        Value to be written into memory
+    size : int
+        Size of value, must be BYTE, HWORD, or WORD 
+    """
+    __log('Writing {} ({} bits) into MEM[{}]'.format(val, size, addr), 1)
+    if not size in (MemorySize.BYTE, MemorySize.HWORD, MemorySize.WORD):
+        raise ValueError('Invalid size {}'.format(size))
+    if not is_aligned(addr, size):
+        raise ValueError('Address is not naturally aligned')
+    if not is_valid_addr(addr):
+        raise MemoryError('Address {} is out of bounds'.format(addr))
+    masks = {MemorySize.WORD: 0xFF000000, MemorySize.HWORD: 0x0000FF00,
+             MemorySize.BYTE: 0x000000FF}
+    byte_list = []
+    for i in range(0, size, MemorySize.BYTE):
+        # Get a list of bytes starting at highest bit
+        # size-i-BYTE-1 gives us lowest bit of next byte
+        # size-i gives us highest bit of next byte
+        byte_list.append(Integer.get_bits(
+            val, size-i-MemorySize.BYTE, size-i-1))
+    if in_stack_segment(addr):
+        # Attempting to write to stack, since the stack grows downwards we need
+        # to get the higher address of the range we will write to
+        addr = addr-len(byte_list)+1
+    __write_bytes(addr, byte_list)
+
+
+# These functions are for Read/Write operations on the sim memory
+
+def __read_bytes(addr: int, num_bytes: int) -> list:
+    """
+    Reads bytes from memory starting at addr
+
+    Parameters
+    ----------
+    addr : int
+        Address to start reading from
+    num_bytes : int
+        Number of bytes to read
+
+    Returns
+    -------
+    list
+        List of bytes in the order that they were read
+    """
+
+    __log('Reading {} bytes from memory'.format(num_bytes))
+    if not is_valid_addr(addr):
+        raise MemoryError('Address {} out of range'.format(addr))
+    return [__mem.get(addr+i, 0) for i in range(num_bytes)]
+
+
+def __build_value(byte_list: list, signed=False):
+    """
+    Given a list of bytes, reconstruct original value
+
+    Parameters
+    ----------
+    byte_list : list
+        List of bytes in big-endian order
+    signed : bool
+        Flag for reconstructing value as signed/unsigned
+
+    Returns
+        Reconstructed int
+    """
+
+    if len(byte_list) > 4:
+        raise ValueError('Too many bytes for 32 bit value')
+    while len(byte_list) < 4:
+        # Sign/zero extend to 32 bits
+        if signed:
+            byte_list.insert(0, DataType.MAX_UINT8)
         else:
-            self._write_bytes(addr, val_bytes)
+            byte_list.insert(0, 0)
+    val = 0
+    for i, byte in enumerate(byte_list):
+        val |= byte << (len(byte_list)-i-1)*MemorySize.BYTE
+    if signed:
+        return c_int32(val).value
+    return val
 
-    def _write_bytes(self, addr: int, val_bytes: list) -> None:
-        """
-        Helper function for writing bytes to memory
 
-        Starting at addr, write each byte sequentially
-        """
-        for offset, byte in enumerate(val_bytes):
-            write_addr = addr+offset
-            if write_addr >= self.memory_limit:
-                raise IndexError('Trying to write past memory limit')
-            self.memory[addr+offset] = byte
+def read_word(addr: int, signed=False) -> int:
+    """
+    Read a word from memory starting at addr
 
-    def allocate_bytes_in_heap(self, num_bytes: int) -> int:
-        """
-        Returns address of next word-aligned heap address
+    Parameters
+    ----------
+    addr : int
+        Address to start reading from
+    signed : bool, optional
+        If True, read value from memory as signed
 
-        if num_bytes is not word aligned, allocates additional bytes to
-        make num_bytes word aligned
-        """
-        address = self.heap_pointer
-        while ((num_bytes-1)//4 != 0):
-            num_bytes += 1
+    Returns
+    -------
+    int
+        Value read from memory 
+    """
 
-        self.heap_pointer += num_bytes
-        return address
+    if in_stack_segment(addr):
+        # Address is in stack segment, read value backwards since
+        # stack addresses grow downwards
+        addr = addr - MemorySize.WORD_LENGTH_BYTES + 1
+    return __build_value(__read_bytes(
+        addr, MemorySize.WORD_LENGTH_BYTES), signed=signed)
 
-    def get_modified_addresses(self) -> list:
-        return list(self.memory.keys())
 
-    def dump(self, radix=int) -> dict:
-        """
-        Dumps memory
-        """
-        formatting = {int: '{}', hex: '0x{:02x}', bin: '{:08b}'}
-        dumped = {}
-        for addr in self.memory:
-            if addr % 4 == 0:
-                dumped[addr] = []
-                for i in range(4):
-                    val = formatting[radix].format(
-                        self.memory.get(addr+i, 0), 2)
-                    dumped[addr].append(val)
-        return dumped
-    
-    def is_negative(self, val: int, size: int):
-        mask = 2**(size-1)
-        return ((val & mask) >> size-1) == 1
+def read_hword(addr: int, signed=False) -> int:
+    """
+    Read a half word from memory starting at addr
 
-    # Helper functions for determining which memory segment an address is in
-    def in_user_memory(self, addr: int) -> bool:
-        return self.text_base_addr <= addr < self.ktext_base_addr
+    Parameters
+    ----------
+    addr : int
+        Address to start reading from
+    signed : bool, optional
+        If True, read value from memory as signed
 
-    def in_MMIO_segment(self, addr: int) -> bool:
-        return self.mmio_base_addr <= addr < self.mmio_limit_addr
+    Returns
+    -------
+    int
+        Value read from memory 
+    """
 
-    def in_kdata_segment(self, addr: int) -> bool:
-        return self.kdata_base_addr <= addr < self.kdata_limit_addr
+    if in_stack_segment(addr):
+        # Address is in stack segment, read value backwards since
+        # stack addresses grow downwards
+        addr = addr - MemorySize.HWORD_LENGTH_BYTES + 1
+    return __build_value(__read_bytes(
+        addr, MemorySize.HWORD_LENGTH_BYTES), signed=signed)
 
-    def in_ktext_segment(self, addr: int) -> bool:
-        return self.ktext_base_addr <= addr < self.ktext_limit_addr
 
-    def in_stack_segment(self, addr: int) -> bool:
-        return self.stack_base_addr >= addr > self.stack_heap_boundary
+def read_byte(addr: int, signed=False) -> int:
+    """
+    Read a byte from memory starting at addr
 
-    def in_text_segment(self, addr: int) -> bool:
-        return self.text_base_addr <= addr < self.text_limit_addr
+    Parameters
+    ----------
+    addr : int
+        Address to start reading from
+    signed : bool, optional
+        If True, read value from memory as signed
 
-    def in_extern_segment(self, addr: int) -> bool:
-        return self.extern_base_addr <= addr < self.extern_limit_addr
+    Returns
+    -------
+    int
+        Value read from memory 
+    """
+    if not is_valid_addr(addr):
+        raise MemoryError('Address {} out of bounds'.format(addr))
+    val = __mem.get(addr, 0)
+    if signed:
+        return c_int8(val).value
+    return val
 
-    def in_data_segment(self, addr: int) -> bool:
-        return self.data_base_addr <= addr < self.stack_heap_boundary
 
-if __name__ == '__main__':
-    mem = Memory()
-    print(mem.is_negative(0xFFFFFF85, 32))
+# These functions are for exporting contents of memory
+
+def get_modified_addresses() -> list:
+    """
+    Get a list of modified addresses
+
+    Since memory is simulated as a python dictionary,
+    all addresses that are modified (written to) will be a key
+    in the dictionary
+
+    Returns
+    -------
+    list
+        A list of all modified addresses
+    """
+
+    return list(__mem.keys())
+
+
+def dump(radix=int) -> dict:
+    """
+    Dump the current state of memory
+
+    Parameters
+    ----------
+    radix : int, optional
+        The radix used to show values in memory
+        (bin, int, hex)
+
+    Returns
+    -------
+    dict
+        A Dictionary of all modified addresses in the following
+        format
+
+        {addr: [val +0, val+1, val+2, val+2]}
+    """
+    formatting = {int: '{}', hex: '0x{:02x}', bin: '{:08b}'}
+    if not radix in formatting:
+        raise ValueError('Invalid radix type')
+    dumped = {}
+    for addr in __mem:
+        if addr % 4 == 0:
+            dumped[addr] = []
+            for i in range(MemorySize.WORD_LENGTH_BYTES):
+                val = formatting[radix].format(__mem.get(addr+i, 0), 2)
+                dumped[addr].append(val)
+    return dumped
+

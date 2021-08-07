@@ -1,7 +1,13 @@
-from .memory import *
-from .registers import *
+"""MIPS32 Simulated Hardware
 
-# Objects to be used in a global context
-RF = GPR()
-CP0 = Coprocessor0()
-MEM = Memory()
+This package gives access to the simulated MIPS32 hardware for the
+Pyssembler environment
+
+All memory-related operations can be done using the memory module
+
+All register-related operations can be done using the registers module
+"""
+
+from .types import DataType
+
+

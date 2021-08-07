@@ -1,4 +1,9 @@
-from .hardware import *
-from .instruction_set import InstructionSet
+"""MIPS32 Components
 
-INSTR_SET = InstructionSet()
+This package includes multiple MIPS32 Components for creating and
+assembling MIPS32 programs
+"""
+
+from .hardware import memory, registers, errors
+from .instructions import instruction_set
+from . import assembler, errors, mips_program, utils
