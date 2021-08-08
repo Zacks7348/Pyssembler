@@ -250,7 +250,8 @@ class Assembler:
                 charnum=line.tokens[0].charnum,
                 message='Could not assemble instruction')
         line.binary_instr = encoding
-        memory.write(line.memory_addr, encoding, size=MemorySize.WORD)
+        #memory.write(line.memory_addr, encoding, size=MemorySize.WORD)
+        memory.write_instruction(line.memory_addr, encoding, line)
 
     def __handle_directive(self, line):
         """Helper function for dealing with directives that write values into memory

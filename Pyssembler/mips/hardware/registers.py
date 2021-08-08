@@ -23,11 +23,12 @@ CP0 Exception Codes:
 15 - DBZ     (Divide by zero)
 """
 
+from Pyssembler.mips.hardware.exceptions import AddressErrorException
 from os import name
 from ctypes import c_int32, c_uint32
 from typing import Union
 
-from .memory import MemorySize
+from .memory import MemorySize, dump
 from .types import DataType
 
 __VERBOSE__ = 0
@@ -46,7 +47,6 @@ CP0_REGS = {'$8': 8, '$12': 12, '$13': 13, '$14': 14}
 __gp_register_file = {addr: 0 for addr in GP_REGS.values()}
 __cp0_register_file = {addr: 0 for addr in CP0_REGS.values()}
 pc = 0
-
 
 def is_register(name: str) -> bool:
     """
@@ -162,5 +162,9 @@ def gpr_dump(radix=int) -> dict:
     dumped = {}
     for name, addr in GP_REGS.items():
         dumped[name] = formatting[radix].format(c_int32(__gp_register_file[addr]).value)
+    dumped['$gp'] = __gp_register_file[28]
+    dumped['$sp'] = __gp_register_file[29]
+    dumped['$fp'] = __gp_register_file[30]
+    dumped['$ra'] = __gp_register_file[31]
     dumped['PC'] = pc
     return dumped

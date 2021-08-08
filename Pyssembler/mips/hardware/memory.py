@@ -1,9 +1,26 @@
+"""MIPS32 MEMORY
+
+This file contains functions for interacting with simulated 32-bit memory.
+
+Memory is implemented as a dictionary where each key is a 32-bit address 
+that maps to a byte value. The dictionary is initially empty to save space. 
+Each time a value is written the appropriate addresses and byte values are 
+stored in the dictionary. Trying to read a value from an address that has not
+been initialized will return 0 since this logic would be undefined behaviour
+in MIPS architecture. The current state of memory can be dumped, though the dump
+will only contain memory addresses that have been written to.
+
+All bytes are stored as unsigned 8-bit integers (BYTES) and can be read back
+as signed or unsigned.
+
+"""
+
 import json
 import os.path
-from ctypes import c_int32, c_uint32, c_int8
+from ctypes import c_int32, c_uint32, c_uint16, c_int16, c_int8, c_uint8
 
-from .errors import MemoryError
-from .types import DataType
+from .exceptions import *
+from .types import DataType, MemorySize
 from ..utils import Integer
 
 __MEMORY_CONFIG_FILE__ = os.path.dirname(__file__)+'/memory_config.json'
@@ -58,20 +75,8 @@ class MemoryConfig:
         global_pointer = int(config['global pointer'], 16)
 
 
-class MemorySize:
-    """
-    Stores some useful memory size values
-    """
-    BIT = 1
-    BYTE = 8
-    HWORD = 16
-    WORD = 32
-    WORD_LENGTH_BYTES = WORD // BYTE
-    HWORD_LENGTH_BYTES = HWORD // BYTE
-    BYTE_LENGTH_BYTES = BYTE // BYTE
-
-
 __mem = {}  # Represents 32 bit memory
+__instr_mem = {}  # Store ProgramLine objects
 
 
 def set_verbose(verbose: int) -> None:
@@ -219,18 +224,18 @@ def is_aligned(addr: int, alignment: int) -> bool:
     return addr % (alignment // MemorySize.BYTE) == 0
 
 
-def __write_bytes(addr: int, byte_list) -> None:
+def __write_bytes(addr: int, val: int, num_bytes: int) -> None:
     """
-    Helper function for writing a list of bytes into memory starting at addr
+    Helper function for writing an integer value into memory byte by byte
     """
-
-    for offset, byte in enumerate(byte_list):
-        write_addr = addr+offset
+    for i in range(0, num_bytes):
+        write_addr = addr+i
         if not is_valid_addr(write_addr):
-            raise MemoryError(
-                'Address {} is not a valid 32 bit address'.format(write_addr))
-        __log('Writing {} into MEM[{}]'.format(byte, write_addr), 2)
-        __mem[write_addr] = byte
+            raise AddressErrorException(
+                'Invalid Address', MIPSExceptionCodes.ADDRS, write_addr)
+        byte_val = c_uint8(Integer.get_byte(val, num_bytes-i-1)).value
+        __log('Writing {} into MEM[{}]'.format(byte_val, write_addr), 2)
+        __mem[write_addr] = byte_val
 
 
 def write(addr: int, val: int, size: int) -> None:
@@ -249,31 +254,47 @@ def write(addr: int, val: int, size: int) -> None:
         Size of value, must be BYTE, HWORD, or WORD 
     """
     __log('Writing {} ({} bits) into MEM[{}]'.format(val, size, addr), 1)
-    if not size in (MemorySize.BYTE, MemorySize.HWORD, MemorySize.WORD):
-        raise ValueError('Invalid size {}'.format(size))
     if not is_aligned(addr, size):
-        raise ValueError('Address is not naturally aligned')
-    if not is_valid_addr(addr):
-        raise MemoryError('Address {} is out of bounds'.format(addr))
-    masks = {MemorySize.WORD: 0xFF000000, MemorySize.HWORD: 0x0000FF00,
-             MemorySize.BYTE: 0x000000FF}
-    byte_list = []
-    for i in range(0, size, MemorySize.BYTE):
-        # Get a list of bytes starting at highest bit
-        # size-i-BYTE-1 gives us lowest bit of next byte
-        # size-i gives us highest bit of next byte
-        byte_list.append(Integer.get_bits(
-            val, size-i-MemorySize.BYTE, size-i-1))
+        #raise MemoryError('Address is not naturally aligned')
+        raise AddressErrorException(
+            'Address is not naturally aligned', MIPSExceptionCodes.ADDRS, addr)
+    if not size in (MemorySize.BYTE, MemorySize.HWORD, MemorySize.WORD):
+        raise ValueError('Invalid data size: {} bits'.format(size))
+    num_bytes = size // MemorySize.BYTE
     if in_stack_segment(addr):
         # Attempting to write to stack, since the stack grows downwards we need
-        # to get the higher address of the range we will write to
-        addr = addr-len(byte_list)+1
-    __write_bytes(addr, byte_list)
+        # to get the lower address of the range we will write to
+        addr = addr-(num_bytes)+1
+    __write_bytes(addr, val, num_bytes)
 
+
+def write_instruction(addr: int, encoding: int, instruction) -> None:
+    """
+    Write an instruction into memory
+
+    Address must be aligned on a word boundary
+
+    Parameters
+    ----------
+    addr : int
+        Address to write instruction to
+    encoding : int
+        Encoded instruction
+    instruction : ProgramLine
+        Instruction object 
+    """
+    if not in_text_segment(addr) or in_ktext_segment(addr):
+        raise AddressErrorException(
+            'Cannot write instruction outside text/ktext segment',
+            MIPSExceptionCodes.ADDRS, addr)
+
+    write(addr, encoding, MemorySize.WORD)
+    __instr_mem[addr] = instruction
 
 # These functions are for Read/Write operations on the sim memory
 
-def __read_bytes(addr: int, num_bytes: int) -> list:
+
+def __read_bytes(addr: int, num_bytes: int, signed=False) -> int:
     """
     Reads bytes from memory starting at addr
 
@@ -283,48 +304,49 @@ def __read_bytes(addr: int, num_bytes: int) -> list:
         Address to start reading from
     num_bytes : int
         Number of bytes to read
+    signed : bool
+        If true, return integer as signed
 
     Returns
     -------
-    list
-        List of bytes in the order that they were read
+    int
+        resulting integer read from bytes
     """
 
-    __log('Reading {} bytes from memory'.format(num_bytes))
-    if not is_valid_addr(addr):
-        raise MemoryError('Address {} out of range'.format(addr))
-    return [__mem.get(addr+i, 0) for i in range(num_bytes)]
-
-
-def __build_value(byte_list: list, signed=False):
-    """
-    Given a list of bytes, reconstruct original value
-
-    Parameters
-    ----------
-    byte_list : list
-        List of bytes in big-endian order
-    signed : bool
-        Flag for reconstructing value as signed/unsigned
-
-    Returns
-        Reconstructed int
-    """
-
-    if len(byte_list) > 4:
-        raise ValueError('Too many bytes for 32 bit value')
-    while len(byte_list) < 4:
-        # Sign/zero extend to 32 bits
-        if signed:
-            byte_list.insert(0, DataType.MAX_UINT8)
-        else:
-            byte_list.insert(0, 0)
-    val = 0
-    for i, byte in enumerate(byte_list):
-        val |= byte << (len(byte_list)-i-1)*MemorySize.BYTE
+    __log('Reading {} bytes from memory'.format(num_bytes), 2)
+    res = 0
+    sa = (num_bytes-1)*MemorySize.BYTE
+    for i in range(0, num_bytes):
+        read_addr = addr+i
+        if not is_valid_addr(read_addr):
+            raise AddressErrorException(
+                'Invalid address', MIPSExceptionCodes.ADDRL, read_addr)
+        #res = res | (__mem[read_addr] << sa)
+        res = res | (__mem.get(read_addr, 0) << sa)
+        sa -= MemorySize.BYTE
     if signed:
-        return c_int32(val).value
-    return val
+        if num_bytes == MemorySize.BYTE_LENGTH_BYTES:
+            return c_int8(res).value
+        if num_bytes == MemorySize.HWORD_LENGTH_BYTES:
+            return c_int16(res).value
+        if num_bytes == MemorySize.WORD_LENGTH_BYTES:
+            return c_int32(res).value
+    return res
+
+
+def read_instruction(addr: int) -> object:
+    """
+    Get an instruction object from memory
+    """
+
+    if not is_aligned(addr, MemorySize.WORD):
+        raise AddressErrorException(
+            'Address is not aligned on word boundary', MIPSExceptionCodes.ADDRS, addr)
+    if not in_text_segment(addr) or in_ktext_segment(addr):
+        raise AddressErrorException(
+            'Cannot read instruction outside text/ktext segment',
+            MIPSExceptionCodes.ADDRS, addr)
+    return __instr_mem.get(addr, None)
 
 
 def read_word(addr: int, signed=False) -> int:
@@ -343,13 +365,14 @@ def read_word(addr: int, signed=False) -> int:
     int
         Value read from memory 
     """
-
+    if not is_aligned(addr, MemorySize.WORD):
+        raise AddressErrorException(
+            'Address is not aligned on word boundary', MIPSExceptionCodes.ADDRL, addr)
     if in_stack_segment(addr):
         # Address is in stack segment, read value backwards since
         # stack addresses grow downwards
         addr = addr - MemorySize.WORD_LENGTH_BYTES + 1
-    return __build_value(__read_bytes(
-        addr, MemorySize.WORD_LENGTH_BYTES), signed=signed)
+    return __read_bytes(addr, MemorySize.WORD_LENGTH_BYTES, signed=signed)
 
 
 def read_hword(addr: int, signed=False) -> int:
@@ -369,12 +392,14 @@ def read_hword(addr: int, signed=False) -> int:
         Value read from memory 
     """
 
+    if not is_aligned(addr, MemorySize.WORD):
+        raise AddressErrorException(
+            'Address is not aligned on half-word boundary', MIPSExceptionCodes.ADDRL, addr)
     if in_stack_segment(addr):
         # Address is in stack segment, read value backwards since
         # stack addresses grow downwards
         addr = addr - MemorySize.HWORD_LENGTH_BYTES + 1
-    return __build_value(__read_bytes(
-        addr, MemorySize.HWORD_LENGTH_BYTES), signed=signed)
+    return __read_bytes(addr, MemorySize.HWORD_LENGTH_BYTES, signed=signed)
 
 
 def read_byte(addr: int, signed=False) -> int:
@@ -394,7 +419,9 @@ def read_byte(addr: int, signed=False) -> int:
         Value read from memory 
     """
     if not is_valid_addr(addr):
-        raise MemoryError('Address {} out of bounds'.format(addr))
+        #raise MemoryError('Address {} out of bounds'.format(addr))
+        raise AddressErrorException(
+            'Invalid address', MIPSExceptionCodes.ADDRL, addr)
     val = __mem.get(addr, 0)
     if signed:
         return c_int8(val).value
@@ -449,4 +476,3 @@ def dump(radix=int) -> dict:
                 val = formatting[radix].format(__mem.get(addr+i, 0), 2)
                 dumped[addr].append(val)
     return dumped
-

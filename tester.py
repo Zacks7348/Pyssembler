@@ -1,3 +1,4 @@
+from Pyssembler.mips.hardware import memory
 from Pyssembler.mips import utils
 from ctypes import c_int32, c_uint32
 import json
@@ -10,6 +11,7 @@ import tests
 from Pyssembler.mips.tokenizer import tokenize_program
 
 from Pyssembler.mips.simulator import sim_functions
+from Pyssembler.mips.simulator import Simulator
 
 # def generate_sim_functions(filename):
 #     def write_function(name):
@@ -84,8 +86,10 @@ if __name__ == '__main__':
     program = MIPSProgram(main='test.asm')
     asm = Assembler()
     asm.assemble(program)
-    for instr in program:
-        print(instr)
-        print(instr.tokens)
+    for line in program:
+        print(line)
+        for toke in line.tokens:
+            print(toke)
         print()
-
+    # sim = Simulator(verbose=2, step=True, states=True)
+    # sim.simulate()

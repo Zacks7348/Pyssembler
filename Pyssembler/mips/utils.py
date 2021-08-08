@@ -2,7 +2,7 @@ from ctypes import c_int32, c_uint32
 from pdb import set_trace
 from typing import Union
 
-from .hardware import memory
+from .hardware.types import MemorySize
 
 __ESCAPE_CHARS__ = {'"': '\"', '\\': '\\', 'n': '\n',
                     'r': '\r', 't': '\t', 'b': '\b',
@@ -137,8 +137,13 @@ class Integer:
     
     @staticmethod
     def get_byte(i:int, byte_num: int) -> int:
-        scale = byte_num*memory.MemorySize.BYTE
-        return Integer.get_bits(i, scale, scale+memory.MemorySize.BYTE-1)
+        """
+        Return a specific byte from an integer
+
+        Byte 0 represents the first 
+        """
+        scale = byte_num*MemorySize.BYTE
+        return Integer.get_bits(i, scale, scale+MemorySize.BYTE-1)
 
     @staticmethod
     def signed_to_unsigned(i: int) -> int:
