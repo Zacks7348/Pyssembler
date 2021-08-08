@@ -245,7 +245,7 @@ class Instruction:
                     imm = c_uint32(imm).value
                 imm = Integer.get_bits(imm, 0, num_bits-1)
                 values[fmt_token.value] = imm
-
+                line.operands.append(imm)
             elif fmt_token.type != instr_token.type:
                 # The first if statement is the only case where token types
                 # should differ
@@ -260,8 +260,10 @@ class Instruction:
                 # Use c_uint32 to do conversion from signed value to unsigned value
                 imm = c_uint32(instr_token.value).value
                 values[fmt_token.value] = imm
+                line.operands.append(imm)
             else:
                 values[fmt_token.value] = instr_token.value
+                line.operands.append(instr_token.value)
 
         res = self.encoding.format(rd=values['rd'], rt=values['rt'], rs=values['rs'],
                                    imm=values['immediate'])

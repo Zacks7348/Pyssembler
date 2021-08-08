@@ -90,6 +90,8 @@ if __name__ == '__main__':
         print(line)
         for toke in line.tokens:
             print(toke)
+        for operand in line.operands:
+            print(operand)
         print()
     # sim = Simulator(verbose=2, step=True, states=True)
     # sim.simulate()

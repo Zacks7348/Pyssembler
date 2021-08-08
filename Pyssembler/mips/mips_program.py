@@ -162,6 +162,7 @@ class ProgramLine:
         self.binary_instr = None
         self.memory_addr = memory_addr
         self.tokens = tokens
+        self.operands = []
         self.label = label
 
     def get_binary_instr_segmented(self):
