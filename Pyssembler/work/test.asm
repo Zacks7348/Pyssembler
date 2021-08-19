@@ -8,14 +8,14 @@ main:
 	addiu	$fp, $sp, 28	# load new frame pointer	
 
 	lw	$t1, 0($t0)
-	#li	$t0, 0		# init index to 0
+	li	$t0, 0		# init index to 0
 	.globl loop
 
 loop:
 	sw	$t0, 12($sp)	# save caller saved registers
 	sw	$t1, 8($sp)	# 
 
-	#move	$a0, $t0	# setup parameter for fn call
+	move	$a0, $t0	# setup parameter for fn call
 
 	jal	print_num	# call subroutine
 
@@ -23,7 +23,7 @@ loop:
 	lw	$t0, 12($sp)	#
 
 	addiu	$t0, $t0, 1	# increment index;
-	#blt	$t0, $t1, loop	#
+	blt	$t0, $t1, loop	#
 
 	lw	$fp, 16($s5)	# restore frame pointer
 	lw	$ra, 24($sp)	# restore return address
@@ -39,16 +39,16 @@ print_num:
 	sw	$s0, 12($sp)
 	addiu	$fp, $sp, 28
 
-	#move	$s0, $a0	# store argument in temp variable
+	move	$s0, $a0	# store argument in temp variable
 
-	#li	$v0, 4
+	li	$v0, 4
 	syscall			# call print_string
 
-	#li	$v0, 1
+	li	$v0, 1
 	#move	$a0, $s0	# restore argument $a0
 	syscall			# call print_int
 
-	#li	$v0, 4
+	li	$v0, 4
 	syscall			# call print_string
 
 	lw	$s0, 12($sp)

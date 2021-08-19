@@ -3,8 +3,6 @@ DOCUMENTATION TAKES A LOT OF TIME
 """
 
 from Pyssembler.mips.tokenizer import Token
-from .errors import *
-from . import utils
 
 
 class SymbolTable:
@@ -164,21 +162,8 @@ class ProgramLine:
         self.tokens = tokens
         self.operands = []
         self.label = label
-
-    def get_binary_instr_segmented(self):
-        """
-        Get the binary instruction as a string of bits segmented by spaces
-        """
-        if self.binary_instr is None: return None
-
-        op = utils.get_op(self.binary_instr)
-        reg1 = utils.get_reg1(self.binary_instr)
-        reg2 = utils.get_reg2(self.binary_instr)
-        reg3 = utils.get_reg3(self.binary_instr)
-        shamt = utils.get_shamt(self.binary_instr)
-        func = utils.get_func(self.binary_instr)
-        return '{:06b} {:05b} {:05b} {:05b} {:05b} {:06b}'.format(
-            op, reg1, reg2, reg3, shamt, func)
+        self.source_line = self.source.line
+        self.clean_line = ' '.join(self.source_line.split()).split('#')[0]
 
     @property
     def filename(self):
@@ -192,19 +177,14 @@ class ProgramLine:
         """
         Shortcut for getting linenum of this line
         """
-        return self.source.linenum
-    
-    @property
-    def source_line(self):
-        """
-        Shortcut for getting source line
-        """
-        return self.source.line
-    
+        return self.source.linenum   
 
     def __str__(self) -> str:
         return 'ProgramStatement(file={}, source={})'.format(
-            self.filename, repr(self.source.line))
+            self.filename, repr(self.source_line))
+    def __repr__(self) -> str:
+        return 'ProgramStatement(file={}, source={}, label={})'.format(
+            self.filename, repr(self.source_line), self.label)
 
 
 class MIPSProgram:
@@ -274,7 +254,26 @@ class MIPSProgram:
 
         self.program_lines.append(ProgramLine(self, source, tokens=tokens, label=label))
 
+    def get_line(self, i: int) -> ProgramLine:
+        """
+        Get the program line at a specific address
+        """
 
+        try:
+            return self.program_lines[i]
+        except:
+            return None
+    
+    def replace_pseudo_instruction(self, line: ProgramLine, replacements: list, new_tokens: list):
+        """
+        Replace the line with expanded instructions
+        """
+        for i in range(len(replacements)):
+            tmp = ProgramLine(self, line.source, tokens=new_tokens[i], label=line.label)
+            tmp.source_line = replacements[i]
+            replacements[i] = tmp
+        i = self.program_lines.index(line)
+        self.program_lines = self.program_lines[:i] + replacements + self.program_lines[i+1:]
 
     def get_local_symbols(self, line: ProgramLine) -> SymbolTable:
         """Shortcut for getting local symbol table for a statement
@@ -298,6 +297,9 @@ class MIPSProgram:
         code = open(src, 'r')
         for i, line in enumerate(code.readlines(), start=1):
             self.src_lines.append(SourceLine(line, src, i))
+    
+    def __len__(self):
+        return len(self.program_lines)
 
     def __iter__(self):
         """Shortcut for iterating over all ProgramLines

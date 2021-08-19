@@ -2,7 +2,7 @@ from ctypes import c_int32, c_uint32
 from pdb import set_trace
 from typing import Union
 
-from .hardware.types import MemorySize
+from .types import MemorySize
 
 __ESCAPE_CHARS__ = {'"': '\"', '\\': '\\', 'n': '\n',
                     'r': '\r', 't': '\t', 'b': '\b',

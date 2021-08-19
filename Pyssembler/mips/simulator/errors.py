@@ -7,5 +7,12 @@ class SimulatorError(PyssemblerException):
     This inherits from :class:`PyssemblerException`
     """
 
+class SimulationExitException(SimulatorError):
+    """
+    Basic Exception that causes the Simulator to exit
+    """
+
+    def __init__(self, result=None) -> None:
+        self.result = result
 
 

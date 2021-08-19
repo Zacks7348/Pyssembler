@@ -15,7 +15,8 @@
     "heap base address":    "0x10040000",
     "user memory limit":    "0x7fffffff",
     "memory limit":         "0xffffffff",
-    "global pointer":       "0x10000000",
+    "global pointer":       "0x10008000",
+    "stack pointer":        "0x7fffeffc",
     "block length":         "0x000007d0",
     "block table length":   "0x000007d0"
 }

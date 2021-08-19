@@ -21,7 +21,7 @@ from ctypes import c_int32, c_uint32, c_uint16, c_int16, c_int8, c_uint8
 
 from .exceptions import *
 from .types import DataType, MemorySize
-from ..utils import Integer
+from .utils import Integer
 
 __MEMORY_CONFIG_FILE__ = os.path.dirname(__file__)+'/memory_config.json'
 __verbose__ = 0
@@ -64,7 +64,6 @@ class MemoryConfig:
         data_base_addr = int(config['data base address'], 16)
         # starting heap address
         heap_base_addr = int(config['heap base address'], 16)
-        heap_pointer = heap_base_addr
         # boundary between stack and heap
         stack_heap_boundary = int(config['stack-heap boundary'], 16)
         # max address user can write to in memory
@@ -73,10 +72,12 @@ class MemoryConfig:
         memory_limit = int(config['memory limit'], 16)
         # starting address for $gp
         global_pointer = int(config['global pointer'], 16)
+        stack_pointer = int(config['stack pointer'], 16)
 
 
 __mem = {}  # Represents 32 bit memory
 __instr_mem = {}  # Store ProgramLine objects
+heap_address = MemoryConfig.heap_base_addr
 
 
 def set_verbose(verbose: int) -> None:
@@ -427,6 +428,17 @@ def read_byte(addr: int, signed=False) -> int:
         return c_int8(val).value
     return val
 
+def allocate_heap_bytes(num_bytes: int) -> int:
+    global heap_address
+    if num_bytes < 0:
+        raise ValueError('Cannot allocate negative bytes: {}'.format(num_bytes))
+    new_addr = heap_address + num_bytes
+    if not is_aligned(new_addr, MemorySize.WORD):
+        new_addr = new_addr + (4 - new_addr % 4)
+    if not in_data_segment(new_addr):
+        raise AddressErrorException('Heap overflowed from data segment', new_addr)
+    heap_address, old_address = new_addr, heap_address
+    return old_address
 
 # These functions are for exporting contents of memory
 

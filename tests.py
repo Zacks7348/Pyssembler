@@ -8,11 +8,11 @@ def validate_instr_generation():
     failed = []
     with open('test.txt', 'w') as f:
         pass_test = True
-        instr_list = instr_set.get_instruction_names(sort=True)
+        instr_list = instr_set.get_basic_instruction_mnemonics(sort=True)
         for i, name in enumerate(instr_list):
             print('Validating {}...'.format(name))
             f.write('Testing {} instruction...\n'.format(name))
-            instr = instr_set.get_instruction(name)
+            instr = instr_set.get_basic_instruction(name)
             test_instr = instr.generate_example(bstring=True)
             mask = '{:032b}'.format(instr.mask)
             val = '{:032b}'.format(instr.match_value)

@@ -1,6 +1,3 @@
-from Pyssembler.errors import PyssemblerException
-
-
 class MIPSExceptionCodes:
     INT = 0  # Interrupt
     ADDRL = 4  # Load from an illegal address
@@ -13,26 +10,6 @@ class MIPSExceptionCodes:
     OVF = 12  # Arithmetic overflow
     TRAP = 13
     DIVIDE_BY_ZERO = 15
-
-
-class SyscallCodes:
-    PRINT_INT = 1
-    PRINT_FLOAT = 2
-    PRINT_DOUBLE = 3
-    PRINT_STRING = 4
-    READ_INT = 5
-    READ_FLOAT = 6
-    READ_DOUBLE = 7
-    READ_STRING = 8
-    SBRK = 9
-    EXIT = 10
-    PRINT_CHAR = 11
-    READ_CHAR = 12
-    OPEN_FILE = 13
-    READ_FROM_FILE = 14
-    WRITE_TO_FILE = 15
-    CLOSE_FILE = 16
-    EXIT_WITH_VALUE = 17
 
 
 class MIPSException(Exception):
@@ -92,6 +69,7 @@ class ArithmeticOverflowException(MIPSException):
     def __init__(self) -> None:
         super().__init__('break instruction executed', MIPSExceptionCodes.OVF)
 
+
 class TrapException(MIPSException):
     """
     MIPS Exception raised when a trap instruction is true
@@ -100,10 +78,11 @@ class TrapException(MIPSException):
     def __init__(self) -> None:
         super().__init__('Trap raised', MIPSExceptionCodes.TRAP)
 
+
 class DivideByZeroException(MIPSException):
     """
     MIPS Exception raised when a division by zero occurs
     """
 
     def __init__(self) -> None:
-        super().__init__('Trap raised', MIPSExceptionCodes.DIVIDE_BY_ZERO) 
+        super().__init__('Trap raised', MIPSExceptionCodes.DIVIDE_BY_ZERO)

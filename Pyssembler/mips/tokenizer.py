@@ -6,7 +6,7 @@ import string
 from .hardware import registers
 from .hardware.types import DataType
 from .instructions import instruction_set as instr_set
-from .utils import Integer
+from .hardware import Integer
 from .directives import Directives
 from Pyssembler.mips import utils
 from .errors import TokenizationError
@@ -139,7 +139,7 @@ def __match_token(token_str: str) -> tuple:
         # token_str is an ascii string and has already been parsed
         # by the tokenizer, just need to remove surrounding double quotes
         return TokenType.ASCII, token_str[1:-1]
-    elif instr_set.is_instruction(token_str):
+    elif instr_set.is_mnemonic(token_str):
         # token_str is an instruction mnemonic
         return TokenType.MNEMONIC, token_str
     elif __is_valid_symbol(token_str):
@@ -212,7 +212,6 @@ def tokenize_line(line: str, src_file: str, linenum: int) -> list:
     current = ''
     start = 1  # char number current token starts at
     prev_c = None
-
     i = 0
     while i < len(line):
         c = line[i]
@@ -344,13 +343,14 @@ def tokenize_program(program):
     line in the program is tokenized based on the types defined in 
     :class:`TokenType`. 
     
-    Once all tokens are generated for a line, a :class:`ProgramLine` 
-    object is created and added to the program. Any comments that are 
-    found are ignored and any invalid tokens will raise an error.
+    Once all tokens are generated for a line, they are passed to
+    the program object to create the corresponding :class:`ProgramLine`
+    as well as any labels declared at the start of the line. The label
+    token and colon token are removed from the final token list. 
 
     Parameters
     ----------
-    program : MIPSProgram
+    program : :class:`MIPSProgram`
         the program to be tokenized
 
     Raises
@@ -359,7 +359,6 @@ def tokenize_program(program):
         If an invalid/unknown token is found
     """
     label = None
-
     for src_line in program.src_lines:
         token_list = tokenize_line(src_line.line, src_line.src_file,
                                    src_line.linenum)
@@ -383,10 +382,12 @@ def tokenize_program(program):
                 # Valid label definition
                 label = token_list[0]
                 if len(token_list) >= 3:
-                    # Rest of line is here
-                    token_list = token_list[2:]
-                    __add_program_line(program, src_line, token_list,
-                                       label)
+                    if token_list[2].type != TokenType.COMMENT:
+                        # Rest of line is here
+                        token_list = token_list[2:]
+                        __add_program_line(program, src_line, token_list,
+                                            label)
+                        label = None
             else:
                 # Expected a colon after label
                 raise TokenizationError(
@@ -418,7 +419,8 @@ def tokenize_instr_format(instr_format: str) -> list:
 
     split_format = []
 
-    #import pdb; pdb.set_trace()
+    # if instr_format.split()[0] == 'sw':
+    #     import pdb; pdb.set_trace()
 
     # when iterating over instr_format.split(), start at index 1
     # since mnemonic will always be at 0
@@ -430,7 +432,10 @@ def tokenize_instr_format(instr_format: str) -> list:
         if '(' in value and value.endswith(')'):
             # x(y)
             x, y = value.split('(')
-            split_format += [x, '(', y[:-1], ')']
+            if x == '':
+                split_format += ['(', y[:-1], ')']
+            else:
+                split_format += [x, '(', y[:-1], ')']
         else: split_format.append(value)
 
     token_list = []
@@ -440,10 +445,12 @@ def tokenize_instr_format(instr_format: str) -> list:
             token_list.append(Token(value, TokenType.LEFT_P))
         elif value == ')':
             token_list.append(Token(value, TokenType.RIGHT_P))
-        elif value in ('rd', 'rs', 'rt'):
+        elif value in ('rd', 'rs', 'rt') or registers.is_register(value):
             token_list.append(Token(value, TokenType.REGISTER))
         elif value == 'immediate':
             token_list.append(Token(value, TokenType.IMMEDIATE))
+        elif value == 'label':
+            token_list.append(Token(value, TokenType.LABEL))
         else:
             # There are many names for the immediates in formats
             # offset, bp, sa, target. 

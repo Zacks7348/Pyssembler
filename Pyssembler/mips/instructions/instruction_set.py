@@ -1,12 +1,16 @@
+from Pyssembler.mips.mips_program import ProgramLine
 from typing import Union
 from enum import Enum
 
-from .instructions import Instruction, get_instructions
+from .instructions import BasicInstruction, PseudoInstruction
+from .instructions import generate_basic_instructions, generate_pseudo_instructions
 from .. import utils
 
-__INSTRUCTIONS__ = get_instructions()
+__INSTRUCTIONS__ = generate_basic_instructions()
+__PSEUDO_INSTRUCTIONS__ = generate_pseudo_instructions()
 
-def get_instruction_names(sort: bool = False) -> list:
+
+def get_basic_instruction_mnemonics(sort: bool = False) -> list:
     """
     Returns a list of implemented instruction mnemonics
 
@@ -23,64 +27,119 @@ def get_instruction_names(sort: bool = False) -> list:
         return sorted(output)
     return output
 
-def get_instruction(mnemonic: str) -> Instruction:
-    """
-    Returns the instruction object of the mnemonic
+def get_pseudo_instruction_mnemonics(sort: bool = False) -> list:
+    output = []
+    for instr in __PSEUDO_INSTRUCTIONS__:
+        output.append(instr.mnemonic)
+    if sort:
+        return sorted(output)
+    return output
 
-    This function utilizes the lru_cache from functools
-    to avoid searching for commonly searched mnemonics
+def get_basic_instruction(line: ProgramLine) -> BasicInstruction:
+    """
+    Returns the basic instruction object of the mnemonic
 
     Parameters
     ----------
-    mnemonic : str
-        The name of the instruction
+    line : ProgramLine
+        The ProgramLine object to get the basic instruction object of
 
     Returns
     -------
-    Instruction
-        The Instruction object of the mnemonic or None if doesn't exist
+    BasicInstruction
+        The BasicInstruction object that matches line or None if no match
+    """
+
+    for instr in __INSTRUCTIONS__:
+        if instr.match(line):
+            return instr
+    return None
+
+def get_pseudo_instruction(line: ProgramLine) -> PseudoInstruction:
+    """
+    Returns the pseudo instruction object of the mnemonic
+
+    Parameters
+    ----------
+    line : ProgramLine
+        The ProgramLine object to get the pseudo instruction object of
+
+    Returns
+    -------
+    PseudoInstruction
+        The PseudoInstruction object that matches line or None if no match
+    """
+    for instr in __PSEUDO_INSTRUCTIONS__:
+        if instr.match(line):
+            return instr
+    return None
+
+
+def is_mnemonic(mnemonic: str) -> bool:
+    """
+    Returns True if the mnemonic passed is a valid basic instruction mnemonic
+    or pseudo instruction mnemonic
     """
 
     for instr in __INSTRUCTIONS__:
         if instr.mnemonic == mnemonic:
-            return instr
-    return None
+            return True
+    for instr in __PSEUDO_INSTRUCTIONS__:
+        if instr.mnemonic == mnemonic:
+            return True
+    return False
 
-def is_instruction(mnemonic: str) -> bool:
+def is_basic_instruction(line: ProgramLine) -> bool:
     """
     Returns true if the mnemonic passed is an implemented instruction
 
-    Shortcut for using get_instruction and testing for None
+    Parameters
+    ----------
+    line : ProgramLine
+        The ProgramLine object to test
+    """
+    return not get_basic_instruction(line) is None
+
+def is_pseudo_instruction(line: ProgramLine) -> bool:
+    """
+    Returns true if the mnemonic passed is an implemented pseudo instruction
 
     Parameters
     ----------
-    mnemonic : str
-        The name of the instruction
-    """
-    return not get_instruction(mnemonic) is None
-
-def match_binary_instruction(bin_instr: int) -> Instruction:
-    """
-    Tries to match a binary instruction to an instruction object
-
-    Parameters
-    ----------
-    bin_instr : int
-        The binary instruction
-
-    Returns
-    -------
-    Instruction
-        The instruction object that matches the binary instruction or None if
-        no match exists
+    line : ProgramLine
+        The ProgramLine object to test
     """
 
-    for instr in __INSTRUCTIONS__:
-        if instr.match(bin_instr):
-            return instr
-    return None
+    return not get_pseudo_instruction(line) is None
 
-def encode_instruction(line, bstring=False) -> Union[int, str]:
+# def match_instruction(line: ProgramLine) -> BasicInstruction:
+#     for instr in __INSTRUCTIONS__:
+#         if instr.match(line):
+#             return instr
+#     return None
+
+# def match_binary_instruction(bin_instr: int) -> BasicInstruction:
+#     """
+#     Tries to match a binary instruction to an instruction object
+
+#     Parameters
+#     ----------
+#     bin_instr : int
+#         The binary instruction
+
+#     Returns
+#     -------
+#     Instruction
+#         The instruction object that matches the binary instruction or None if
+#         no match exists
+#     """
+
+#     for instr in __INSTRUCTIONS__:
+#         if instr.match_binary(bin_instr):
+#             return instr
+#     return None
+
+def encode_instruction(line: ProgramLine, bstring=False) -> Union[int, str]:
     """
     Encode the passed program line into binary
 
@@ -91,21 +150,39 @@ def encode_instruction(line, bstring=False) -> Union[int, str]:
 
     Parameters
     ----------
-    statement : ProgramStatement
-        The statement to be encoded
+    line : ProgramStatement
+        The line to be encoded
     bstring : bool
         If true, return the encoded instruction as a binary string
     """
 
     # print('Attempting to Encode {}...'.format(line.tokens[0].value))
-    instr_obj = get_instruction(line.tokens[0].value)
+    instr_obj = get_basic_instruction(line)
     if instr_obj is None:
         # print('\tCould not find instruction object')
         return None
-    print('[INSTR_SET] Encoding {} with obj {}'.format(line, instr_obj))
     return instr_obj.encode(line, bstring)
 
-    
 
+def expand_pseudo_instruction(line: ProgramLine) -> list:
+    """
+    Expand the passed pseudo instruction into the equivalent 
+    basic instruction(s)
+
+    Parameters
+    ----------
+    line : ProgramLine
+        The line to be expanded
+
+    Returns
+    -------
+    list
+        The list of expanded basic instructions as strings
+    """
+    instr_obj = get_pseudo_instruction(line)
+    #print(line, repr(instr_obj))
+    if instr_obj is None:
+        return None
+    return instr_obj.expand(line)
 
 
