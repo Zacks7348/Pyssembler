@@ -1,16 +1,12 @@
 from enum import Enum
 from typing import Union
-import re
 import string
 
 from .hardware import registers
-from .hardware.types import DataType
 from .instructions import instruction_set as instr_set
 from .hardware import Integer
 from .directives import Directives
-from Pyssembler.mips import utils
 from .errors import TokenizationError
-from Pyssembler.mips import directives
 
 __SPECIAL_CHARS__ = {'"': '\"', '\\': '\\', 'n': '\n',
                      'r': '\r', 't': '\t', 'b': '\b',

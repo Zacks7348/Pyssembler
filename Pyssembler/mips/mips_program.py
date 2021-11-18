@@ -177,7 +177,11 @@ class ProgramLine:
         """
         Shortcut for getting linenum of this line
         """
-        return self.source.linenum   
+        return self.source.linenum
+
+    @property
+    def src_line(self):
+        return self.source.line 
 
     def __str__(self) -> str:
         return 'ProgramStatement(file={}, source={})'.format(
@@ -297,6 +301,7 @@ class MIPSProgram:
         code = open(src, 'r')
         for i, line in enumerate(code.readlines(), start=1):
             self.src_lines.append(SourceLine(line, src, i))
+        code.close()
     
     def __len__(self):
         return len(self.program_lines)

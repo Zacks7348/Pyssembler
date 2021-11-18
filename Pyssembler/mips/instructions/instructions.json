@@ -83,7 +83,7 @@
         "description": "GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
-    "bc":{
+    "bc": {
         "format": "bc immediate",
         "encoding": "110010{imm:026b}",
         "purpose": "Branch, Compact",
@@ -97,39 +97,11 @@
         "description": "If GPR[rs] == GPR[rt], PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
-    "bgez": {
-        "format": "bgez rs, immediate",
-        "encoding": "000001{rs:05b}00001{imm:016b}",
-        "purpose": "Branch on Greater Than or Equal to Zero",
-        "description": "If GPR[rs] >= 0, PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
-    "blezalc": {
-        "format": "blezalc rt, immediate",
-        "encoding": "00011000000{rt:05b}{imm:016b}",
-        "purpose": "Compact branch-and-link if GPR rt is less than or equal to zero",
-        "description": "If GPR[rt] <= 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
-    "bgezalc": {
-        "format": "bgezalc rt, immediate",
-        "encoding": "000110{rt:05b}{rt:05b}{imm:016b}",
-        "purpose": "Compact branch-and-link if GPR rt is greater than or equal to zero",
-        "description": "If GPR[rt] >= 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
-    "bgtzalc": {
-        "format": "bgtzalc rt, immediate",
-        "encoding": "00011100000{rt:05b}{imm:016b}",
-        "purpose": "Compact branch-and-link if GPR rt is greater than zero",
-        "description": "If GPR[rt] > 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
-    "bltzalc": {
-        "format": "bltzalc rt, immediate",
-        "encoding": "000111{rt:05b}{rt:05b}{imm:016b}",
-        "purpose": "Compact branch-and-link if GPR rt is less than zero",
-        "description": "If GPR[rt] < 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
+    "beqc": {
+        "format": "beqc rs, rt, offset",
+        "encoding": "001000{rs:05b}{rt:05b}{imm:016b}",
+        "purpose": "Equal register-register compare and branch with 16-bit offset",
+        "description": "If GPR[rs] == GPR[rt], PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
     "beqzalc": {
@@ -139,32 +111,11 @@
         "description": "If GPR[rt] == 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
-    "bnezalc": {
-        "format": "bnezalc rt, immediate",
-        "encoding": "01100000000{rt:05b}{imm:016b}",
-        "purpose": "Compact branch-and-link if GPR rt is not equal to zero",
-        "description": "If GPR[rt] != 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
-    "beqc": {
-        "format": "beqc rs, rt, offset",
-        "encoding": "001000{rs:05b}{rt:05b}{imm:016b}",
-        "purpose": "Equal register-register compare and branch with 16-bit offset",
-        "description": "If GPR[rs] == GPR[rt], PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
-    "bnec": {
-        "format": "bnec rs, rt, offset",
-        "encoding": "011000{rs:05b}{rt:05b}{imm:016b}",
-        "purpose": "Not-Equal register-register compare and branch with 16-bit offset",
-        "description": "If GPR[rs] != GPR[rt], PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
-    "bltc": {
-        "format": "bltc rs, rt, immediate",
-        "encoding": "010111{rs:05b}{rt:05b}{imm:016b}",
-        "purpose": "Branch if Less Than Compact (Signed)",
-        "description": "If GPR[rs] < GPR[rt], PC = (immediate << 2) + PC + 4",
+    "beqzc": {
+        "format": "beqzc rs, immediate",
+        "encoding": "110110{rs:05b}{imm:021b}",
+        "purpose": "Branch if Equal to Zero Compact",
+        "description": "If GPR[rt] == 0, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
     "bgec": {
@@ -174,13 +125,6 @@
         "description": "If GPR[rs] >= GPR[rt], PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
-    "bltuc": {
-        "format": "bltuc rs, rt, immediate",
-        "encoding": "000111{rs:05b}{rt:05b}{imm:016b}",
-        "purpose": "Branch if Less Than Compact (Unsigned)",
-        "description": "If GPR[rs] < GPR[rt], PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
     "bgeuc": {
         "format": "bgeuc rs, rt, immediate",
         "encoding": "000110{rs:05b}{rt:05b}{imm:016b}",
@@ -188,18 +132,18 @@
         "description": "If GPR[rs] >= GPR[rt], PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
-    "bltzc": {
-        "format": "bltzc rt, immediate",
-        "encoding": "010111{rt:05b}{rt:05b}{imm:016b}",
-        "purpose": "Branch if Less Than Zero Compact",
-        "description": "If GPR[rt] < 0, PC = (immediate << 2) + PC + 4",
+    "bgez": {
+        "format": "bgez rs, immediate",
+        "encoding": "000001{rs:05b}00001{imm:016b}",
+        "purpose": "Branch on Greater Than or Equal to Zero",
+        "description": "If GPR[rs] >= 0, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
-    "blezc": {
-        "format": "blezc rt, immediate",
-        "encoding": "01011000000{rt:05b}{imm:016b}",
-        "purpose": "Branch if Less Than or Equal to Zero Compact",
-        "description": "If GPR[rt] <= 0, PC = (immediate << 2) + PC + 4",
+    "bgezalc": {
+        "format": "bgezalc rt, immediate",
+        "encoding": "000110{rt:05b}{rt:05b}{imm:016b}",
+        "purpose": "Compact branch-and-link if GPR rt is greater than or equal to zero",
+        "description": "If GPR[rt] >= 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
     "bgezc": {
@@ -209,32 +153,25 @@
         "description": "If GPR[rt] >= 0, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
-    "bgtzc": {
-        "format": "bgtzc rt, immediate",
-        "encoding": "01011100000{rt:05b}{imm:016b}",
-        "purpose": "Branch if Greater Than Zero Compact",
-        "description": "If GPR[rt] >= 0, PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
-    "beqzc": {
-        "format": "beqzc rs, immediate",
-        "encoding": "110110{rs:05b}{imm:021b}",
-        "purpose": "Branch if Equal to Zero Compact",
-        "description": "If GPR[rt] == 0, PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
-    "bnezc": {
-        "format": "bnezc rs, immediate",
-        "encoding": "111110{rs:05b}{imm:021b}",
-        "purpose": "Branch if Not Equal to Zero Compact",
-        "description": "If GPR[rt] != 0, PC = (immediate << 2) + PC + 4",
-        "type": "B"
-    },
     "bgtz": {
         "format": "bgtz rs, immediate",
         "encoding": "000111{rs:05b}00000{imm:016b}",
         "purpose": "Branch on Greater Than Zero",
         "description": "If GPR[rt] > 0, PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
+    "bgtzalc": {
+        "format": "bgtzalc rt, immediate",
+        "encoding": "00011100000{rt:05b}{imm:016b}",
+        "purpose": "Compact branch-and-link if GPR rt is greater than zero",
+        "description": "If GPR[rt] > 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
+    "bgtzc": {
+        "format": "bgtzc rt, immediate",
+        "encoding": "01011100000{rt:05b}{imm:016b}",
+        "purpose": "Branch if Greater Than Zero Compact",
+        "description": "If GPR[rt] >= 0, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
     "bitswap": {
@@ -251,10 +188,52 @@
         "description": "If GPR[rt] <= 0, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
+    "blezalc": {
+        "format": "blezalc rt, immediate",
+        "encoding": "00011000000{rt:05b}{imm:016b}",
+        "purpose": "Compact branch-and-link if GPR rt is less than or equal to zero",
+        "description": "If GPR[rt] <= 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
+    "blezc": {
+        "format": "blezc rt, immediate",
+        "encoding": "01011000000{rt:05b}{imm:016b}",
+        "purpose": "Branch if Less Than or Equal to Zero Compact",
+        "description": "If GPR[rt] <= 0, PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
+    "bltc": {
+        "format": "bltc rs, rt, immediate",
+        "encoding": "010111{rs:05b}{rt:05b}{imm:016b}",
+        "purpose": "Branch if Less Than Compact (Signed)",
+        "description": "If GPR[rs] < GPR[rt], PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
+    "bltuc": {
+        "format": "bltuc rs, rt, immediate",
+        "encoding": "000111{rs:05b}{rt:05b}{imm:016b}",
+        "purpose": "Branch if Less Than Compact (Unsigned)",
+        "description": "If GPR[rs] < GPR[rt], PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
     "bltz": {
         "format": "bltz rs, immediate",
         "encoding": "000001{rs:05b}00000{imm:016b}",
         "purpose": "Branch on Less than Zero",
+        "description": "If GPR[rt] < 0, PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
+    "bltzalc": {
+        "format": "bltzalc rt, immediate",
+        "encoding": "000111{rt:05b}{rt:05b}{imm:016b}",
+        "purpose": "Compact branch-and-link if GPR rt is less than zero",
+        "description": "If GPR[rt] < 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
+    "bltzc": {
+        "format": "bltzc rt, immediate",
+        "encoding": "010111{rt:05b}{rt:05b}{imm:016b}",
+        "purpose": "Branch if Less Than Zero Compact",
         "description": "If GPR[rt] < 0, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
@@ -265,11 +244,25 @@
         "description": "If GPR[rs] != GPR[rt], PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
-    "bovc": {
-        "format": "bovc rs, rt, immediate",
-        "encoding": "001000{rs:05b}{rt:05b}{imm:016b}",
-        "purpose": "Branch on Overflow Compact",
-        "description": "If GPR[rs] + GPR[rt] causes overflow, PC = (immediate << 2) + PC + 4",
+    "bnec": {
+        "format": "bnec rs, rt, offset",
+        "encoding": "011000{rs:05b}{rt:05b}{imm:016b}",
+        "purpose": "Not-Equal register-register compare and branch with 16-bit offset",
+        "description": "If GPR[rs] != GPR[rt], PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
+    "bnezalc": {
+        "format": "bnezalc rt, immediate",
+        "encoding": "01100000000{rt:05b}{imm:016b}",
+        "purpose": "Compact branch-and-link if GPR rt is not equal to zero",
+        "description": "If GPR[rt] != 0, GPR[31] = PC + 4, PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
+    "bnezc": {
+        "format": "bnezc rs, immediate",
+        "encoding": "111110{rs:05b}{imm:021b}",
+        "purpose": "Branch if Not Equal to Zero Compact",
+        "description": "If GPR[rt] != 0, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
     "bnvc": {
@@ -277,6 +270,13 @@
         "encoding": "011000{rs:05b}{rt:05b}{imm:016b}",
         "purpose": "Branch on no Overflow Compact",
         "description": "If GPR[rs] + GPR[rt] does not cause overflow, PC = (immediate << 2) + PC + 4",
+        "type": "B"
+    },
+    "bovc": {
+        "format": "bovc rs, rt, immediate",
+        "encoding": "001000{rs:05b}{rt:05b}{imm:016b}",
+        "purpose": "Branch on Overflow Compact",
+        "description": "If GPR[rs] + GPR[rt] causes overflow, PC = (immediate << 2) + PC + 4",
         "type": "B"
     },
     "break": {
@@ -314,33 +314,19 @@
         "description": "GPR[rd] = GPR[rs] // GPR[rt]",
         "type": "R"
     },
-    "mod": {
-        "format": "mod rd, rs, rt",
-        "encoding": "000000{rs:05b}{rt:05b}{rd:05b}00011011010",
-        "purpose": "Divide 32 bit integers and save remainder (Signed)",
-        "description": "GPR[rd] = GPR[rs] % GPR[rt]",
-        "type": "R"
-    },
-    "modu": {
-        "format": "modu rd, rs, rt",
-        "encoding": "000000{rs:05b}{rt:05b}{rd:05b}00011011011",
-        "purpose": "Divide 32 bit integers and save remainder",
-        "description": "GPR[rd] = GPR[rs] % GPR[rt]",
-        "type": "R"
-    },
     "j": {
         "format": "j immediate",
         "encoding": "000010{imm:026b}",
         "purpose": "Jump to immediate address",
         "description": "PC = immediate << 2",
-        "type": "J"
+        "type": "JS"
     },
     "jal": {
         "format": "jal immediate",
         "encoding": "000011{imm:026b}",
         "purpose": "Jump and Link to immediate address",
         "description": "GPR[31] = PC + 4, PC = immediate << 2",
-        "type": "J"
+        "type": "JS"
     },
     "jalr": {
         "format": "jalr rd, rs",
@@ -412,18 +398,25 @@
         "description": "GPR[rt] = CPR[0, rd, sel]",
         "type": "R"
     },
+    "mod": {
+        "format": "mod rd, rs, rt",
+        "encoding": "000000{rs:05b}{rt:05b}{rd:05b}00011011010",
+        "purpose": "Divide 32 bit integers and save remainder (Signed)",
+        "description": "GPR[rd] = GPR[rs] % GPR[rt]",
+        "type": "R"
+    },
+    "modu": {
+        "format": "modu rd, rs, rt",
+        "encoding": "000000{rs:05b}{rt:05b}{rd:05b}00011011011",
+        "purpose": "Divide 32 bit integers and save remainder",
+        "description": "GPR[rd] = GPR[rs] % GPR[rt]",
+        "type": "R"
+    },
     "mtc0": {
         "format": "mtc0 rt, rd, sel",
         "encoding": "01000000100{rt:05b}{rd:05b}00000000{imm:03b}",
         "purpose": "Move to Coprocessor 0",
         "description": "CPR[0, rd, sel] = GPR[rt]",
-        "type": "R"
-    },
-    "mul": {
-        "format": "mul rd, rs, rt",
-        "encoding": "000000{rs:05b}{rt:05b}{rd:05b}00010011000",
-        "purpose": "Multiply 32 bit integers and save low word (Signed)",
-        "description": "GPR[rd] = GPR[rs] * GPR[rt]",
         "type": "R"
     },
     "muh": {
@@ -433,17 +426,24 @@
         "description": "GPR[rd] = GPR[rs] * GPR[rt]",
         "type": "R"
     },
-    "mulu": {
-        "format": "mulu rd, rs, rt",
-        "encoding": "000000{rs:05b}{rt:05b}{rd:05b}00010011001",
-        "purpose": "Multiply 32 bit integers and save high word",
-        "description": "GPR[rd] = GPR[rs] * GPR[rt]",
-        "type": "R"
-    },
     "muhu": {
         "format": "muhu rd, rs, rt",
         "encoding": "000000{rs:05b}{rt:05b}{rd:05b}00011011001",
         "purpose": "Multiply 32 bit integers and save low word",
+        "description": "GPR[rd] = GPR[rs] * GPR[rt]",
+        "type": "R"
+    },
+    "mul": {
+        "format": "mul rd, rs, rt",
+        "encoding": "000000{rs:05b}{rt:05b}{rd:05b}00010011000",
+        "purpose": "Multiply 32 bit integers and save low word (Signed)",
+        "description": "GPR[rd] = GPR[rs] * GPR[rt]",
+        "type": "R"
+    },
+    "mulu": {
+        "format": "mulu rd, rs, rt",
+        "encoding": "000000{rs:05b}{rt:05b}{rd:05b}00010011001",
+        "purpose": "Multiply 32 bit integers and save high word",
         "description": "GPR[rd] = GPR[rs] * GPR[rt]",
         "type": "R"
     },

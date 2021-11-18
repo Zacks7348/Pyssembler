@@ -1,39 +1,29 @@
 from Pyssembler.mips.mips_program import ProgramLine
 from typing import Union
-from enum import Enum
 
 from .instructions import BasicInstruction, PseudoInstruction
 from .instructions import generate_basic_instructions, generate_pseudo_instructions
-from .. import utils
 
-__INSTRUCTIONS__ = generate_basic_instructions()
+__BASIC_INSTRUCTIONS__ = generate_basic_instructions()
+__BASIC_MNEMONICS__ = set(sorted([instr.mnemonic for instr in __BASIC_INSTRUCTIONS__]))
 __PSEUDO_INSTRUCTIONS__ = generate_pseudo_instructions()
+__PSEUDO_MNEMONICS__ = set(sorted([instr.mnemonic for instr in __PSEUDO_INSTRUCTIONS__]))
 
 
-def get_basic_instruction_mnemonics(sort: bool = False) -> list:
+def get_basic_instruction_mnemonics() -> list:
     """
     Returns a list of implemented instruction mnemonics
-
-    Parameters
-    ----------
-    sort : bool, optional
-        Declare that the list should be sorted alphabetically
     """
 
-    output = []
-    for instr in __INSTRUCTIONS__:
-        output.append(instr.mnemonic)
-    if sort:
-        return sorted(output)
-    return output
+    return list(__BASIC_MNEMONICS__)
 
-def get_pseudo_instruction_mnemonics(sort: bool = False) -> list:
-    output = []
-    for instr in __PSEUDO_INSTRUCTIONS__:
-        output.append(instr.mnemonic)
-    if sort:
-        return sorted(output)
-    return output
+
+def get_pseudo_instruction_mnemonics() -> list:
+    """
+    Returns a list of implemented pseudo instruction mnemonics
+    """
+    
+    return list(__PSEUDO_MNEMONICS__)
 
 def get_basic_instruction(line: ProgramLine) -> BasicInstruction:
     """
@@ -50,7 +40,7 @@ def get_basic_instruction(line: ProgramLine) -> BasicInstruction:
         The BasicInstruction object that matches line or None if no match
     """
 
-    for instr in __INSTRUCTIONS__:
+    for instr in __BASIC_INSTRUCTIONS__:
         if instr.match(line):
             return instr
     return None
@@ -81,13 +71,7 @@ def is_mnemonic(mnemonic: str) -> bool:
     or pseudo instruction mnemonic
     """
 
-    for instr in __INSTRUCTIONS__:
-        if instr.mnemonic == mnemonic:
-            return True
-    for instr in __PSEUDO_INSTRUCTIONS__:
-        if instr.mnemonic == mnemonic:
-            return True
-    return False
+    return mnemonic in __BASIC_MNEMONICS__ or mnemonic in __PSEUDO_MNEMONICS__
 
 def is_basic_instruction(line: ProgramLine) -> bool:
     """
@@ -112,32 +96,6 @@ def is_pseudo_instruction(line: ProgramLine) -> bool:
 
     return not get_pseudo_instruction(line) is None
 
-# def match_instruction(line: ProgramLine) -> BasicInstruction:
-#     for instr in __INSTRUCTIONS__:
-#         if instr.match(line):
-#             return instr
-#     return None
-
-# def match_binary_instruction(bin_instr: int) -> BasicInstruction:
-#     """
-#     Tries to match a binary instruction to an instruction object
-
-#     Parameters
-#     ----------
-#     bin_instr : int
-#         The binary instruction
-
-#     Returns
-#     -------
-#     Instruction
-#         The instruction object that matches the binary instruction or None if
-#         no match exists
-#     """
-
-#     for instr in __INSTRUCTIONS__:
-#         if instr.match_binary(bin_instr):
-#             return instr
-#     return None
 
 def encode_instruction(line: ProgramLine, bstring=False) -> Union[int, str]:
     """

@@ -3,12 +3,9 @@ This is the console version of Pyssembler.
 
 This version only provides simulation functionality.
 """
-from Pyssembler.mips.hardware import memory, registers
 import argparse
-from datetime import datetime
 import logging
 import sys
-import json
 
 from Pyssembler import MIPSProgram, Assembler, Simulator
 from Pyssembler import AssemblerError, TokenizationError
