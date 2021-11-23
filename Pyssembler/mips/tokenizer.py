@@ -441,7 +441,7 @@ def tokenize_instr_format(instr_format: str) -> list:
             token_list.append(Token(value, TokenType.LEFT_P))
         elif value == ')':
             token_list.append(Token(value, TokenType.RIGHT_P))
-        elif value in ('rd', 'rs', 'rt') or registers.is_register(value):
+        elif value in ('rd', 'rs', 'rt') or is_register(value):
             token_list.append(Token(value, TokenType.REGISTER))
         elif value == 'immediate':
             token_list.append(Token(value, TokenType.IMMEDIATE))
