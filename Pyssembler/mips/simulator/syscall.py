@@ -72,7 +72,7 @@ def __sbrk():
 
 def __exit():
     LOGGER.debug('Exiting...')
-    raise SimulationExitException
+    raise SimulationExitException()
 
 def __print_char():
     LOGGER.debug('Printing char...')

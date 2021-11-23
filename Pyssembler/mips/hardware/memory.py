@@ -339,11 +339,10 @@ def read_instruction(addr: int) -> object:
     """
     Get an instruction object from memory
     """
-
     if not is_aligned(addr, MemorySize.WORD):
         raise AddressErrorException(
             'Address is not aligned on word boundary', MIPSExceptionCodes.ADDRS, addr)
-    if not in_text_segment(addr) or in_ktext_segment(addr):
+    if not in_text_segment(addr) and not in_ktext_segment(addr):
         raise AddressErrorException(
             'Cannot read instruction outside text/ktext segment',
             MIPSExceptionCodes.ADDRS, addr)

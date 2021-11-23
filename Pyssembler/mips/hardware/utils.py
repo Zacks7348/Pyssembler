@@ -108,6 +108,40 @@ class Integer:
         return '{:032b}'.format(c_uint32(i).value)[32-bits:]
 
     @staticmethod
+    def change_bits(i: int, low: int, high: int, new_bits: int) -> int:
+        """
+        Write new_bits into the bits low to high in i
+        """
+
+        mask = 1
+        for bit in range(low, high+1):
+            if new_bits & mask:
+                i = Integer.set_bit(i, bit)
+            else:
+                i = Integer.clear_bit(i, bit)
+            new_bits  = new_bits >> 1
+        return i
+
+    @staticmethod
+    def change_bit(i: int, bit: int, bit_val: int):
+        if bit_val: return Integer.set_bit(i, bit)
+        else: return Integer.clear_bit(i, bit)
+
+    @staticmethod
+    def set_bit(i: int, bit: int) -> int:
+        """
+        Set bit to 1 in i
+        """
+        return i | (1<<bit)
+    
+    @staticmethod
+    def clear_bit(i: int, bit: int) -> int:
+        """
+        Set bit to 0 in i
+        """
+        return i & ~(1<<bit)
+
+    @staticmethod
     def get_bits(i: int, low: int, high: int, signed=False) -> int:
         """
         Returns a specified range of bits from i. Assumes bit 31 is left most bit

@@ -11,4 +11,5 @@ All register-related operations can be done using the registers module
 from .types import DataType, MemorySize
 from .exceptions import *
 from .utils import *
+from .registers import GPR, CP0, is_register
 

@@ -1,5 +1,4 @@
 from Pyssembler.errors import PyssemblerException
-from enum import Enum
 
 
 class AssemblerError(PyssemblerException):
@@ -19,7 +18,7 @@ class AssemblerError(PyssemblerException):
 class AssemblerWarning(PyssemblerException):
     """
     This exception is thrown when a warning occurs during
-    program assembly and the setting Warnings are Errors
+    program assembly and the setting 'Warnings are Errors'
     is turned on
 
     This inherits from :class:`PyssemblerException`

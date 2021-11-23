@@ -301,30 +301,17 @@ class PseudoInstruction(Instruction):
         """
 
         expanded = []
-        pseudo_fmt_tokens = tokenize_instr_format(self.format)
-
-        for instr_token, fmt_token in zip(line.tokens[1:], self.fmt_tokens):
-            # Verify that the pseudo instruction is formatted properly
-            if instr_token.type == TokenType.COMMENT:
-                break
-            if instr_token.type != fmt_token.type:
-                raise AssemblerError(
-                    filename=line.filename,
-                    linenum=line.linenum,
-                    charnum=instr_token.charnum,
-                    message='Invalid Syntax: Expected {}'.format(fmt_token.type.name))
-            if instr_token.type == TokenType.REGISTER:
-                # The value will have been converted to the register address,
-                # need to keep name for now
-                instr_token.value = registers.get_name_from_address(
-                    instr_token.value)
-        #import pdb; pdb.set_trace()
-        for expanded_instr in self.expanded_instructions:
-            exp_tokens = tokenize_instr_format(expanded_instr)
-            for i, token in enumerate(pseudo_fmt_tokens, start=1):
-                expanded_instr = expanded_instr.replace(
-                    token.value, str(line.tokens[i].value))
-            expanded.append(expanded_instr)
+        for exp_instr in self.expanded_instructions:
+            for i, token in enumerate(self.fmt_tokens, start=1):
+                if line.tokens[i].type == TokenType.REGISTER:
+                    # This will have been converted from reg name ($s1) to int addres
+                    # Need to go back to name
+                    exp_instr = exp_instr.replace(
+                        token.value, 
+                        registers.get_name_from_address(line.tokens[i].value))
+                else:
+                    exp_instr = exp_instr.replace(token.value, str(line.tokens[i].value))
+            expanded.append(exp_instr)
         return expanded
 
     def __str__(self) -> str:

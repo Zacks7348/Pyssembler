@@ -2,7 +2,7 @@ from enum import Enum
 from typing import Union
 import string
 
-from .hardware import registers
+from .hardware import GPR, CP0, is_register
 from .instructions import instruction_set as instr_set
 from .hardware import Integer
 from .directives import Directives
@@ -124,8 +124,8 @@ def __match_token(token_str: str) -> tuple:
         return TokenType.COLON, token_str
     elif token_str.startswith('#'):
         return TokenType.COMMENT, token_str
-    elif registers.is_register(token_str):
-        return TokenType.REGISTER, registers.get_addr(token_str)
+    elif is_register(token_str):
+        return TokenType.REGISTER, GPR.get_addr(token_str)
     elif Directives.is_directive(token_str):
         return TokenType.DIRECTIVE, token_str
     elif not (imm := Integer.from_string(token_str)) is None:

@@ -30,7 +30,7 @@ class AddressErrorException(MIPSException):
 
     def __init__(self, message: str, exeception_type: int, addr: int) -> None:
         self.address = addr
-        super().__init__(message, exeception_type)
+        super().__init__(message+f' {self.address}', exeception_type)
 
 
 class SyscallException(MIPSException):
@@ -58,7 +58,7 @@ class ReservedInstructionException(MIPSException):
     """
 
     def __init__(self) -> None:
-        super().__init__('break instruction executed', MIPSExceptionCodes.RI)
+        super().__init__('Reserved Instruction', MIPSExceptionCodes.RI)
 
 
 class ArithmeticOverflowException(MIPSException):
@@ -67,7 +67,7 @@ class ArithmeticOverflowException(MIPSException):
     """
 
     def __init__(self) -> None:
-        super().__init__('break instruction executed', MIPSExceptionCodes.OVF)
+        super().__init__('Overflow Detected', MIPSExceptionCodes.OVF)
 
 
 class TrapException(MIPSException):
@@ -85,4 +85,4 @@ class DivideByZeroException(MIPSException):
     """
 
     def __init__(self) -> None:
-        super().__init__('Trap raised', MIPSExceptionCodes.DIVIDE_BY_ZERO)
+        super().__init__('Divide By Zero', MIPSExceptionCodes.DIVIDE_BY_ZERO)

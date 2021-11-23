@@ -255,9 +255,6 @@ class Assembler:
         self.__prepare_for_assembly(program, text_offset, ktext_offset, data_offset,
                                     kdata_offset, extern_offset)
         LOGGER.debug('Preparations complete!')
-        print(self.program.global_symbols.table)
-        for table in self.program.local_symbols.values():
-            print(table.table)
         LOGGER.debug('Assembling program...')
 
         for segment_type in (Segment.DATA, Segment.TEXT):

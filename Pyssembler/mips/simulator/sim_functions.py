@@ -60,7 +60,7 @@ def add_instruction(instr):
     res, overflow = alu.add32(registers.gpr_read(
         rs, signed=True), registers.gpr_read(rt, signed=True))
     if overflow:
-        raise ArithmeticOverflowException
+        raise ArithmeticOverflowException()
     registers.gpr_write(rd, res)
 
 
