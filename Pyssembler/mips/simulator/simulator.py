@@ -9,7 +9,6 @@ from ..hardware import GPR, CP0, memory
 from .sim_functions import get_sim_function_by_mnemonic
 from .errors import *
 from .syscall import simulate_syscall
-import config
 
 LOGGER = logging.getLogger('PYSSEMBLER.SIMULATOR')
 SIM_OUTPUT = logging.getLogger('SIMULATOR_OUTPUT')
