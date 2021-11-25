@@ -23,6 +23,9 @@ class Manager:
         self.app = app
         # Widgets that are set by app
         self.menu = None
+        self.ide = None
+
+        # State Info
         self.current_state = None
         self.prev_state = None
     

@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter.scrolledtext import ScrolledText
 
+
 class CommandLine(ttk.Notebook):
     """
     The Pyssembler Command Line and MIPS32 Output as tabs

@@ -25,12 +25,11 @@ class PyssemblerApp:
     
     def __init_ui(self):
         self.menu = MenuRibbon(self.root, self.manager)
-        self.manager.menu = self.menu
         self.ide = IDEPage(self.root, self.manager, bg='red')
         self.cmds = CommandLine(self.root, self.manager)
 
-        self.ide.place(relheight=0.9)
-        self.cmds.place(relheight=0.1)
+        self.ide.place(relheight=0.8, relwidth=1)
+        self.cmds.place(relheight=0.2, rely=0.8, relwidth=1)
     
     def run(self):
         LOGGER.debug('Starting GUI Application...')

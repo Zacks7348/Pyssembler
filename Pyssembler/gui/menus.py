@@ -8,6 +8,7 @@ class MenuRibbon(tk.Menu):
     def __init__(self, master, manager):
         super().__init__(master, tearoff=False)
         self.manager = manager
+        self.manager.menu = self
         self.master.config(menu=self)
 
         self.file_menu = FileMenu(master, manager)
