@@ -3,7 +3,8 @@ import logging
 
 from .menus import MenuRibbon
 from .manager import Manager, State
-from .frames.home import HomePage
+from .editor import IDEPage
+from .cmd import CommandLine
 
 LOGGER = logging.getLogger('Pyssembler')
 
@@ -25,8 +26,11 @@ class PyssemblerApp:
     def __init_ui(self):
         self.menu = MenuRibbon(self.root, self.manager)
         self.manager.menu = self.menu
-        self.home = HomePage(self.root, self.manager)
-        self.home.pack()
+        self.ide = IDEPage(self.root, self.manager, bg='red')
+        self.cmds = CommandLine(self.root, self.manager)
+
+        self.ide.place(relheight=0.9)
+        self.cmds.place(relheight=0.1)
     
     def run(self):
         LOGGER.debug('Starting GUI Application...')
