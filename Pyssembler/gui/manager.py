@@ -1,5 +1,6 @@
 from enum import Enum
 import logging
+import os
 
 
 
@@ -28,7 +29,39 @@ class Manager:
         # State Info
         self.current_state = None
         self.prev_state = None
+
+    def exit(self):
+        if not self.ide.editor.close_editors():
+            return
+        self.root.destroy()
+
+#-------------------------------------------------------------------------
+# IO FUNCTIONS
+#-------------------------------------------------------------------------
+
+    def open_file(self, path):
+        """
+        Opens the file located at path, reads the contents
+        """
+        if not path:
+            return
+        LOGGER.debug(f'Opening file {path}...')
+        self.ide.editor.open_editor(path)
+        LOGGER.debug('Opened file!')
     
+    def new_file(self, path):
+        if not path:
+            return
+        LOGGER.debug(f'Creating new file {path}...')
+        f = open(path, 'w')
+        f.close()
+        LOGGER.debug('Created file!')
+        self.open_file(path)
+        
+
+#-------------------------------------------------------------------------
+# State Machine
+#-------------------------------------------------------------------------
     def change_state(self, state: State):
         """
         Perform a state change to state
@@ -46,7 +79,6 @@ class Manager:
             
     def __home_state(self):
         # Menus
-        self.menu.file_menu.entryconfig('Close Project', state='disabled')
-        self.menu.file_menu.entryconfig('Close File', state='disabled')
+        pass
 
     
