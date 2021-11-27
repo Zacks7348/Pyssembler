@@ -8,6 +8,7 @@ __BASIC_INSTRUCTIONS__ = generate_basic_instructions()
 __BASIC_MNEMONICS__ = set(sorted([instr.mnemonic for instr in __BASIC_INSTRUCTIONS__]))
 __PSEUDO_INSTRUCTIONS__ = generate_pseudo_instructions()
 __PSEUDO_MNEMONICS__ = set(sorted([instr.mnemonic for instr in __PSEUDO_INSTRUCTIONS__]))
+__ALL_MNEMONICS__ = set(sorted(list(__BASIC_MNEMONICS__) + list(__PSEUDO_MNEMONICS__)))
 
 
 def get_basic_instruction_mnemonics() -> list:
@@ -24,6 +25,13 @@ def get_pseudo_instruction_mnemonics() -> list:
     """
     
     return list(__PSEUDO_MNEMONICS__)
+
+def get_mnemonics() -> list:
+    """
+    Returns a list of implemented mnemonics
+    """
+
+    return list(__ALL_MNEMONICS__)
 
 def get_basic_instruction(line: ProgramLine) -> BasicInstruction:
     """
