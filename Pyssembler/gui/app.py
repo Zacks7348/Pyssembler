@@ -30,6 +30,8 @@ class PyssemblerApp:
 
         self.ide.place(relheight=0.8, relwidth=1)
         self.cmds.place(relheight=0.2, rely=0.8, relwidth=1)
+
+        self.root.protocol('WM_DELETE_WINDOW', self.manager.exit)
     
     def run(self):
         LOGGER.debug('Starting GUI Application...')
