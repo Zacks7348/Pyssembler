@@ -255,3 +255,11 @@ def is_register(name: str) -> bool:
     """
 
     return GPR.is_register(name) or CP0.is_register(name)
+
+def get_names() -> list:
+    """
+    Returns a list of all valid register names for app processors
+    """
+
+    # Cast to set first to remove duplicates
+    return list(set(list(GPR.reg_names.keys()) + list(CP0.reg_names.keys())))
