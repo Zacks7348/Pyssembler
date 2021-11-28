@@ -57,6 +57,24 @@ class Manager:
         f.close()
         LOGGER.debug('Created file!')
         self.open_file(path)
+        self.ide.explorer.update()
+    
+    def save_file(self):
+        """
+        Saves the selected editor 
+        """
+        self.ide.save()
+    
+    def save_file_as(self, path):
+        """
+        Saves the selected editor as a new file and opens a new 
+        editor on the new file
+        """
+
+        if not path:
+            return
+        self.ide.save_as(path)
+        self.ide.explorer.update()
         
 
 #-------------------------------------------------------------------------

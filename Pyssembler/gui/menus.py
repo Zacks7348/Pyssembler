@@ -27,9 +27,9 @@ class FileMenu(tk.Menu):
         self.add_command(label='Open File', command=self.on_open_file)
         self.add_command(label='Close File')
         self.add_separator()
-        self.add_command(label='Save')
-        self.add_command(label='Save As')
-        self.add_command(label='Save All')
+        self.add_command(label='Save', command=self.on_save)
+        self.add_command(label='Save As', command=self.on_save_as)
+        self.add_command(label='Save All', command=self.on_save_all)
         self.add_separator()
         self.add_command(label='Exit', command=self.manager.exit)
         self.add_separator()
@@ -41,7 +41,7 @@ class FileMenu(tk.Menu):
                 title='New File',
                 filetypes=(("asm files", "*.asm"),("all files", "*.*")),
                 defaultextension="*.asm"
-                )
+        )
         self.manager.new_file(path)
 
     def on_open_file(self):
@@ -53,7 +53,20 @@ class FileMenu(tk.Menu):
         )
         self.manager.open_file(path)
     
+    def on_save(self):
+        self.manager.save_file()
     
+    def on_save_as(self):
+        path = filedialog.asksaveasfilename(
+            initialdir=os.getcwd()+'/Pyssembler/work',
+            title='New File',
+            filetypes=(("asm files", "*.asm"),("all files", "*.*")),
+            defaultextension="*.asm"
+        )
+        self.manager.save_file_as(path)
+    
+    def on_save_all(self):
+        self.manager.save_all_files()
 
 class EditMenu(tk.Menu):
     def __init__(self, master, manager):

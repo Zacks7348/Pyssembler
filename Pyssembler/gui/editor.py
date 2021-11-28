@@ -46,6 +46,19 @@ class IDEPage(tk.Frame):
         path = self.explorer.paths.get(self.explorer.selection()[0], None)
         if path:
             self.editor.open_editor(path)
+    
+    def save(self):
+        """
+        Saves the selected editor 
+        """
+        self.editor.nametowidget(self.editor.select()).save()
+    
+    def save_as(self, path):
+        """
+        Saves the selected editor as a new file
+        """
+        self.editor.nametowidget(self.editor.select()).save_as(path)
+        self.editor.open_editor(path)
 
 class Explorer(ttk.Treeview):
     """
@@ -67,6 +80,16 @@ class Explorer(ttk.Treeview):
         abspath = os.path.abspath(path)
         root = self.insert('', tk.END, text=path, open=True)
         self.__add_paths(root, abspath)
+    
+    def update(self):
+        """
+        Updates the tree view to reflect changes made 
+        (creating/deleting files and folders) after initialization
+        """
+        for item in self.get_children():
+            self.delete(item)
+        self.paths.clear()
+        self.add_path(os.path.abspath('Pyssembler/work'))
 
     def __add_paths(self, parent, path):
         for p in os.listdir(path):
@@ -109,6 +132,10 @@ class EditorManager(ttk.Notebook):
         self.add(self.open_editors[path], text=os.path.basename(path))
         self.select(self.open_editors[path])
 
+    def close_editor_by_path(self, path):
+        if path in self.open_editors:
+            self.close_editor(self.open_editors[path])
+
     def close_editor(self, editor):
         if editor.saved:
             self.forget(editor)
@@ -135,7 +162,10 @@ class EditorManager(ttk.Notebook):
         for p in removed:
             self.open_editors.pop(p)
         return True
-        
+
+    def save_all_editors(self):
+        for editor in self.open_editors.values():
+            editor.save()
 
     def on_close_press(self, event):
         """Called when the button is pressed over the close button"""
@@ -254,6 +284,13 @@ class Editor(tk.Frame):
         with open(self.path, 'w') as f:
             f.write(self.text.get('1.0', tk.END))
         self.saved = True
+    
+    def save_as(self, path):
+        """
+        Save the current state of the editor into a new file
+        """
+        with open(path, 'w') as f:
+            f.write(self.text.get('1.0', tk.END))
 
     def _on_change(self, event=None):
         self.linenums.redraw()
