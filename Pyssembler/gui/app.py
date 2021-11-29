@@ -72,8 +72,12 @@ class PyssemblerApp:
                 defaultextension="*.asm"
         )
         if not path: return
+        LOGGER.debug(f'Creating new file {path}...')
         open(path, 'w').close()
+        LOGGER.debug('Created file!')
+        LOGGER.debug(f'Opening editor on {path}...')
         self.ide.editor.open_editor(path)
+        LOGGER.debug('Opened editor!')
         self.ide.explorer.update()
     
     def __open_file(self, event=None):
@@ -88,13 +92,17 @@ class PyssemblerApp:
             defaultextension='*.asm'
         )
         if not path: return
+        LOGGER.debug(f'Opening editor on {path}...')
         self.ide.editor.open_editor(path)
+        LOGGER.debug('Opened editor!')
     
     def __save(self, event=None):
         """
         Tell the IDE to save the selected editor
         """
+        LOGGER.debug('Saving...')
         self.ide.save()
+        LOGGER.debug('Saved!')
     
     def __save_as(self, event=None):
         """
@@ -108,15 +116,22 @@ class PyssemblerApp:
             defaultextension="*.asm"
         )
         if not path: return
+        LOGGER.debug(f'Saving to {path}...')
         self.ide.save_as()
+        LOGGER.debug('Saved!')
         self.ide.explorer.update()
     
     def __save_all(self, event=None):
+        LOGGER.debug('Saving...')
         self.ide.editor.save_all_editors()
+        LOGGER.debug('Saved!')
 
     def __exit(self, event=None):
+        LOGGER.debug('Exiting application...')
         if not self.ide.editor.close_editors():
+            LOGGER.debug('Aborted exit')
             return
+        LOGGER.debug('Commiting suicide')
         self.root.destroy()
 
     def __config_update(self, event=None):
