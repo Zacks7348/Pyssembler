@@ -1,15 +1,18 @@
 from posixpath import abspath, expanduser
 import tkinter as tk
 from tkinter import ttk
-from tkinter.constants import ANCHOR
+from tkinter.font import Font
 from tkinter.scrolledtext import ScrolledText
 from tkinter import messagebox
 import os
+from pathlib import Path
 
 from .cmd import CommandLine
 
 from Pyssembler.mips.instructions import get_mnemonics
 import Pyssembler.mips.hardware.registers as regs
+
+import config
 
 
 class IDEPage(tk.Frame):
@@ -17,21 +20,19 @@ class IDEPage(tk.Frame):
     Home Page of the application
     """
 
-    def __init__(self, master, manager, **kwargs):
+    def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
-        self.manager = manager
-        self.manager.ide = self
         self.__init_ui()
 
     def __init_ui(self):
-        self.explorer = Explorer(self, self.manager, show='tree', selectmode=tk.BROWSE)
+        self.explorer = Explorer(self, show='tree', selectmode=tk.BROWSE)
         self.exp_ybar = tk.Scrollbar(
             self, orient=tk.VERTICAL, command=self.explorer.yview)
         self.exp_xbar = tk.Scrollbar(
             self, orient=tk.HORIZONTAL, command=self.explorer.xview)
         self.explorer.configure(yscroll=self.exp_ybar.set)
         self.explorer.configure(xscroll=self.exp_xbar.set)
-        self.editor = EditorManager(self, self.manager)
+        self.editor = EditorManager(self)
 
         # Bind Events
         self.explorer.bind('<<TreeviewSelect>>', self.on_explorer_select)
@@ -46,13 +47,13 @@ class IDEPage(tk.Frame):
         path = self.explorer.paths.get(self.explorer.selection()[0], None)
         if path:
             self.editor.open_editor(path)
-    
+
     def save(self):
         """
         Saves the selected editor 
         """
         self.editor.nametowidget(self.editor.select()).save()
-    
+
     def save_as(self, path):
         """
         Saves the selected editor as a new file
@@ -60,15 +61,15 @@ class IDEPage(tk.Frame):
         self.editor.nametowidget(self.editor.select()).save_as(path)
         self.editor.open_editor(path)
 
+
 class Explorer(ttk.Treeview):
     """
     A File Explorer
     """
 
-    def __init__(self, master, manager, **kwargs):
+    def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
-        self.manager = manager
-        self.paths = {} # Used to save abs paths while displaying filenames
+        self.paths = {}  # Used to save abs paths while displaying filenames
         self.heading('#0', text='Explorer', anchor='w')
         # FOR TESTING
         self.add_path(os.path.abspath('Pyssembler/work'))
@@ -80,7 +81,7 @@ class Explorer(ttk.Treeview):
         abspath = os.path.abspath(path)
         root = self.insert('', tk.END, text=path, open=True)
         self.__add_paths(root, abspath)
-    
+
     def update(self):
         """
         Updates the tree view to reflect changes made 
@@ -109,26 +110,44 @@ class EditorManager(ttk.Notebook):
 
     __initialized = False
 
-    def __init__(self, master, manager, **kwargs):
+    def __init__(self, master, **kwargs):
         if not self.__initialized:
             self.__initialize_custom_style()
             EditorManager.__initialized = True
         kwargs["style"] = "CustomNotebook"
         super().__init__(master, **kwargs)
-        self.manager = manager
         self.open_editors = {}
         self._active = None
         self.bind("<ButtonPress-1>", self.on_close_press, True)
         self.bind("<ButtonRelease-1>", self.on_close_release)
+        self.update_config()
+
+    def update_config(self):
+        c = config.get_config()
+        self.font = Font(
+            family=c['editor']['font'],
+            size=c.getint('editor', 'font-size'),
+            weight='normal')
+        self.do_sh = c.getboolean(
+            'editor', 'syntax-highlighting')
+
+        for editor in self.open_editors.values():
+            editor.text.config(font=self.font)
+            if not self.do_sh:
+                editor.text.remove_highlight_syntax()
+            else:
+                editor.text.highlight_syntax()
 
     def open_editor(self, path):
         """
         Creates a new editor tab 
         """
+        path = Path(path).resolve()  # Deal with different facing slashes
         if path in self.open_editors:
             self.select(self.open_editors[path])
             return
-        self.open_editors[path] = Editor(self, self.manager, path)
+        self.open_editors[path] = Editor(
+            self, path, font=self.font, do_sh=self.do_sh)
         self.add(self.open_editors[path], text=os.path.basename(path))
         self.select(self.open_editors[path])
 
@@ -148,7 +167,7 @@ class EditorManager(ttk.Notebook):
             editor.save()
         self.forget(editor)
         return True
-    
+
     def close_editors(self):
         """
         Close all open editors
@@ -254,16 +273,17 @@ class Editor(tk.Frame):
     Container for both the text editor and line numbers
     """
 
-    def __init__(self, master, manager, path, **kwargs):
+    def __init__(self, master, path, **kwargs):
+        self.do_sh = kwargs.pop('do_sh', True)
+        self.font = kwargs.pop('font', None)
         super().__init__(master, **kwargs)
-        self.manager = manager
         self.path = path
         self.saved = True
         self.__init_ui()
         self.__read_file()
 
     def __init_ui(self):
-        self.text = EditorText(self)
+        self.text = EditorText(self, font=self.font)
         self.vsb = tk.Scrollbar(self, orient="vertical",
                                 command=self.text.yview)
         self.text.config(yscrollcommand=self.vsb.set)
@@ -284,7 +304,7 @@ class Editor(tk.Frame):
         with open(self.path, 'w') as f:
             f.write(self.text.get('1.0', tk.END))
         self.saved = True
-    
+
     def save_as(self, path):
         """
         Save the current state of the editor into a new file
@@ -293,8 +313,9 @@ class Editor(tk.Frame):
             f.write(self.text.get('1.0', tk.END))
 
     def _on_change(self, event=None):
-        self.linenums.redraw()
-    
+        if self.do_sh:
+            self.linenums.redraw()
+
     def on_key_release(self, event=None):
         """
         When the user releases a key, perform syntax highlighting
@@ -306,7 +327,8 @@ class Editor(tk.Frame):
     def __read_file(self):
         with open(self.path) as f:
             self.text.insert(tk.INSERT, f.read())
-        self.text.highlight_syntax()
+        if self.do_sh: 
+            self.text.highlight_syntax()
         self.saved = True
 
 
@@ -348,7 +370,8 @@ class EditorText(tk.Text):
 
         # Save regex expressions for syntax highlighting
         self.mnemonic_regex = '|'.join(get_mnemonics())
-        self.reg_regex = '|'.join([r.replace("$", "\$") for r in regs.get_names()])
+        self.reg_regex = '|'.join([r.replace("$", "\$")
+                                  for r in regs.get_names()])
 
     def remove_highlight_syntax(self):
         start = "1.0"
@@ -367,7 +390,7 @@ class EditorText(tk.Text):
             searchStart = self.index('{}.0'.format(i))
             searchEnd = self.index('{} lineend'.format(searchStart))
             self.highlight_syntax_line(searchStart, searchEnd)
-    
+
     def highlight_syntax_line(self, start=None, stop=None):
         if start is None:
             self.mark_set("searchStart", self.index("insert linestart"))
@@ -386,7 +409,7 @@ class EditorText(tk.Text):
             self.mark_set('matchStart', index)
             self.tag_add('comment', 'matchStart', 'searchEnd')
             self.mark_set('searchEnd', self.index('matchStart'))
-        
+
         # Search for and highlight instruction mnemonics
         # There should only be a max of 1 mnemonic per line,
         # so only highlight first found
@@ -403,7 +426,7 @@ class EditorText(tk.Text):
             self.mark_set("matchStart", index)
             self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
             self.tag_add("instr", "matchStart", "matchEnd")
-        
+
         # Search for and highlight all reg names
         # TODO: Register names surrounded by other chars are getting colored
         # ie abcd$s1abc, $s1 would be found and colored. Need to find solution
@@ -441,14 +464,13 @@ class EditorText(tk.Text):
         # generate an event if something was added or deleted,
         # or the cursor position changed
         if (args[0] in ("insert", "replace", "delete") or
-                args[0:3] == ("mark", "set", "insert") or
-                args[0:2] == ("xview", "moveto") or
-                args[0:2] == ("xview", "scroll") or
-                args[0:2] == ("yview", "moveto") or
-                args[0:2] == ("yview", "scroll")
-                ):
+            args[0:3] == ("mark", "set", "insert") or
+            args[0:2] == ("xview", "moveto") or
+            args[0:2] == ("xview", "scroll") or
+            args[0:2] == ("yview", "moveto") or
+            args[0:2] == ("yview", "scroll")
+            ):
             self.event_generate("<<Change>>", when="tail")
 
         # return what the actual widget returned
         return result
-

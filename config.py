@@ -1,11 +1,25 @@
-# Global config settings
-DEBUG = False
-LOG_FILE = None
+import configparser
+from pathlib import Path
+import os
 
-def set_debug(debug: bool) -> None:
-    global DEBUG
-    DEBUG = debug
+__CONFIG_FILE__ = Path('./config.ini').absolute()
 
-def set_log_file(outfile: str) -> None:
-    global LOG_FILE
-    LOG_FILE = outfile
+def generate_default_config():
+    config = configparser.ConfigParser()
+    config['editor'] = {}
+    config['editor']['font'] = 'Courier'
+    config['editor']['font-size'] = '14'
+    config['editor']['syntax-highlighting'] = 'True'
+    with open(__CONFIG_FILE__, 'w') as f:
+        config.write(f)
+
+def get_config():
+    config = configparser.ConfigParser()
+    if not os.path.exists(__CONFIG_FILE__):
+        generate_default_config()
+    config.read(__CONFIG_FILE__)
+    return config
+
+def update_config(config: configparser.ConfigParser):
+    with open(__CONFIG_FILE__, 'w') as f:
+        config.write(f)
