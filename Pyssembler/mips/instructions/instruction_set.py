@@ -1,5 +1,5 @@
 from Pyssembler.mips.mips_program import ProgramLine
-from typing import Union
+from typing import Union, List
 
 from .instructions import BasicInstruction, PseudoInstruction
 from .instructions import generate_basic_instructions, generate_pseudo_instructions
@@ -11,7 +11,7 @@ __PSEUDO_MNEMONICS__ = set(sorted([instr.mnemonic for instr in __PSEUDO_INSTRUCT
 __ALL_MNEMONICS__ = set(sorted(list(__BASIC_MNEMONICS__) + list(__PSEUDO_MNEMONICS__)))
 
 
-def get_basic_instruction_mnemonics() -> list:
+def get_basic_instruction_mnemonics() -> List[str]:
     """
     Returns a list of implemented instruction mnemonics
     """
@@ -19,19 +19,25 @@ def get_basic_instruction_mnemonics() -> list:
     return list(__BASIC_MNEMONICS__)
 
 
-def get_pseudo_instruction_mnemonics() -> list:
+def get_pseudo_instruction_mnemonics() -> List[str]:
     """
     Returns a list of implemented pseudo instruction mnemonics
     """
     
     return list(__PSEUDO_MNEMONICS__)
 
-def get_mnemonics() -> list:
+def get_mnemonics() -> List[str]:
     """
     Returns a list of implemented mnemonics
     """
 
     return list(__ALL_MNEMONICS__)
+
+def get_basic_instructions() -> List[BasicInstruction]:
+    """
+    Returns a list of all basic instruction objects
+    """
+    return __BASIC_INSTRUCTIONS__
 
 def get_basic_instruction(line: ProgramLine) -> BasicInstruction:
     """
