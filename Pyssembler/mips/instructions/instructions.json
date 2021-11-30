@@ -21,7 +21,7 @@
         "type": "I"
     },
     "addu": {
-        "format": "ADDU rd, rs, rt",
+        "format": "addu rd, rs, rt",
         "encoding": "000000{rs:05b}{rt:05b}{rd:05b}00000100001",
         "purpose": "To add 32-bit integers",
         "description": "GPR[rd] = GPR[rs] + GPR[rt]",
