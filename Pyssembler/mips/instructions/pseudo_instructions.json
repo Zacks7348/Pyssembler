@@ -1,31 +1,77 @@
 {
-    "nop": ["sll $zero, $zero, $zer0"],
-    "move rd, rs": ["or rd, $zero, rs"],
-    "clear rd": ["or rd, $zero, $zero"],
-    "li rd, immediate": ["ori rd, $zero, immediate"],
-    "la rd, immediate": ["ori rd, $zero, immediate"],
-    "la rd, label": ["ori rd, $zero, label"],
-    "lb rd, (rt)": ["lb rd, 0(rt)"],
-    "lb rd, immediate": ["lb rd, immediate($0)"],
-    "lb rd, label": ["lb rd, label($0)"],
-    "lh rd, (rt)": ["lh rd, 0(rt)"],
-    "lh rd, immediate": ["lh rd, immediate($0)"],
-    "lh rd, label": ["lh rd, label($0)"],
-    "lw rd, (rt)": ["lw rd, 0(rt)"],
-    "lw rd, immediate": ["lw rd, immediate($0)"],
-    "lw rd, label": ["lw rd, label($0)"],
-    "sb rd, (rt)": ["sb rd, 0(rt)"],
-    "sb rd, immediate": ["sb rd, immediate($0)"],
-    "sb rd, label": ["sb rd, label($0)"],
-    "sh rd, (rt)": ["sh rd, 0(rt)"],
-    "sh rd, immediate": ["sh rd, immediate($0)"],
-    "sh rd, label": ["sh rd, label($0)"],
-    "sw rd, (rt)": ["sw rd, 0(rt)"],
-    "sw rd, immediate": ["sw rd, immediate($0)"],
-    "sw rd, label": ["sw rd, label($0)"],
-    "blt rd, rt, label": ["slt $at, rd, rt", "bne $at, $zero, label"],
-    "ble rd, rt, label": ["slt $at, rt, rd", "beq $at, $zero, label"],
-    "bgt rd, rt, label": ["slt $at, rt, rd", "bne $at, $zero, label"],
-    "bge rd, rt, label": ["slt $at, rd, rt", "beq $at, $zero, label"],
-    "jr rd": ["jalr $zero, rd"]
+    "nop": {
+        "name": "No-Operation",
+        "description": "Blank instruction",
+        "expansion": ["sll $zero, $zero, $zero"]
+    },
+    "move rd, rs": {
+        "name": "Move Register",
+        "description": "Move contents of GPR[rs] to GPR[rd]",
+        "expansion": ["or rd, $zero, rs"]
+    },
+    "clear rd": {
+        "name": "Clear Register",
+        "description": "Set GPR[rd] to 0",
+        "expansion": ["or rd, $zero, $zero"]
+    },
+    "li rd, immediate": {
+        "name": "Load Immediate",
+        "description": "Load immediate into GPR[rd]",
+        "expansion": ["ori rd, $zero, immediate"]
+    },
+    "la rd, immediate": {
+        "name": "Load Address",
+        "description": "Load address into GPR[rd]",
+        "expansion": ["ori rd, $zero, immediate"]
+    },
+    "la rd, label": {
+        "name": "Load Address",
+        "description": "Load address of label into GPR[rd]",
+        "expansion": ["ori rd, $zero, label"]
+    },
+    "lb rd, (rt)": {
+        "name": "Load Byte",
+        "description": "Load byte from MEM[rt] into GPR[rd]",
+        "expansion": ["lb rd, 0(rt)"]
+    },
+    "lb rd, immediate": {
+        "name": "Load Byte",
+        "description": "Load byte from MEM[immediate] into GPR[rd]",
+        "expansion": ["lb rd, immediate($0)"]
+    },
+    "lb rd, label": {
+        "name": "Load Byte",
+        "description": "Load byte from the label address into GPR[rd]",
+        "expansion": ["lb rd, label($0)"]
+    },
+    "lh rd, (rt)": {
+        "name": "Load Half-Word",
+        "description": "Load half-word from MEM[rt] into GPR[rd]",
+        "expansion": ["lh rd, 0(rt)"]
+    },
+    "lh rd, immediate": {
+        "name": "Load Half-Word",
+        "description": "Load half-word from MEM[immediate] into GPR[rd]",
+        "expansion": ["lh rd, immediate($0)"]
+    },
+    "lh rd, label": {
+        "name": "Load Half-Word",
+        "description": "Load half-word from the label address into GPR[rd]",
+        "expansion": ["lh rd, label($0)"]
+    },
+    "lw rd, (rt)": {
+        "name": "Load Word",
+        "description": "Load word from MEM[rt] into GPR[rd]",
+        "expansion": ["lw rd, 0(rt)"]
+    },
+    "lw rd, immediate": {
+        "name": "Load Word",
+        "description": "Load word from MEM[immedate] into GPR[rd]",
+        "expansion": ["lw rd, immediate($0)"]
+    },
+    "lw rd, label": {
+        "name": "Load Word",
+        "description": "Load word from the label address into GPR[rd]",
+        "expansion": ["lw rd, label($0)"]
+    }
 }

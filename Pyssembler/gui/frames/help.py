@@ -1,7 +1,8 @@
 import tkinter as tk
 from tkinter import ttk
 
-from Pyssembler.mips.instructions import get_basic_instructions
+from Pyssembler.mips.instructions import get_basic_instructions, get_pseudo_instructions
+from Pyssembler.mips.directives import Directives
 
 
 class HelpWindow(tk.Toplevel):
@@ -16,6 +17,10 @@ class HelpWindow(tk.Toplevel):
         self.cols = ('Format', 'Description')
         self.instr_table = BasicInstructionTable(self)
         self.nb.add(self.instr_table, text='Basic Instructions')
+        self.psuedo_table = PseudoInstructionTable(self)
+        self.nb.add(self.psuedo_table, text='Pseudo Instructions')
+        self.dir_table = DirectivesTable(self)
+        self.nb.add(self.dir_table, text='Directives')
 
         self.close = tk.Button(self, text='Close', command=self.destroy)
 
@@ -23,7 +28,7 @@ class HelpWindow(tk.Toplevel):
         self.close.pack(side=tk.TOP)
 
 
-class InstructionTable(tk.Frame):
+class HelpDataTable(tk.Frame):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         self.table = tk.Text(self, wrap=tk.NONE)
@@ -38,16 +43,17 @@ class InstructionTable(tk.Frame):
         self.add_with_gray = False
 
     def setup(self):
+        self.table.config(state='disabled')
         self.vsb.pack(side=tk.RIGHT, fill=tk.Y)
         self.hsb.pack(side=tk.BOTTOM, fill=tk.X)
         self.table.pack(side=tk.LEFT)
 
-    def insert(self, formats, descs):
-        max_len_format = max(len(f) for f in formats)
+    def insert(self, keys, descs):
+        max_len_format = max(len(f) for f in keys)
         max_len_desc = max(len(d) for d in descs) 
         # need to make sure descriptions are same length
 
-        for f, d in zip(formats, descs):
+        for f, d in zip(keys, descs):
             self.table.insert(tk.INSERT, '{f:<{ml}}\t{d}\n'.format(
                 f=f, d=d.ljust(max_len_desc), ml=max_len_format))
         end = self.table.index(tk.END)
@@ -61,7 +67,7 @@ class InstructionTable(tk.Frame):
             self.add_with_gray = not self.add_with_gray
 
 
-class BasicInstructionTable(InstructionTable):
+class BasicInstructionTable(HelpDataTable):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         formats = []
@@ -70,4 +76,26 @@ class BasicInstructionTable(InstructionTable):
             formats.append(instr.format)
             descs.append(instr.description)
         self.insert(formats, descs)
+        self.setup()
+
+class PseudoInstructionTable(HelpDataTable):
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+        formats = []
+        descs = []
+        for instr in get_pseudo_instructions():
+            formats.append(instr.format)
+            descs.append(instr.description)
+        self.insert(formats, descs)
+        self.setup()
+
+class DirectivesTable(HelpDataTable):
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+        dirs = []
+        descs = []
+        for directive in Directives.get_directives():
+            dirs.append(directive)
+            descs.append(Directives.get_description(directive))
+        self.insert(dirs, descs)
         self.setup()

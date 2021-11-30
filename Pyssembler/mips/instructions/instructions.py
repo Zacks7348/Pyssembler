@@ -286,9 +286,11 @@ class PseudoInstruction(Instruction):
     Base class for supported MIPS32 pseudo instructions
     """
 
-    def __init__(self, format_: str, expanded_instrs: list) -> None:
+    def __init__(self, format_: str, name: str, desc: str, expanded_instrs: list) -> None:
 
         super().__init__(format_.split()[0], format_)
+        self.name = name
+        self.description = desc
         self.expanded_instructions = expanded_instrs
 
     def expand(self, line: ProgramLine) -> list:
@@ -335,6 +337,9 @@ def generate_basic_instructions():
 def generate_pseudo_instructions():
     output = []
     with open(__PSEUDO_INSTRS_FILE__, 'r') as f:
-        for pseudo_instr, expanded_instrs in json.load(f).items():
-            output.append(PseudoInstruction(pseudo_instr, expanded_instrs))
+        for instr, info in json.load(f).items():
+            name = info['name']
+            desc = info['description']
+            expanded_instrs = info['expansion']
+            output.append(PseudoInstruction(instr, name, desc, expanded_instrs))
     return output

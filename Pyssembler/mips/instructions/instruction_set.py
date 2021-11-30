@@ -39,6 +39,12 @@ def get_basic_instructions() -> List[BasicInstruction]:
     """
     return __BASIC_INSTRUCTIONS__
 
+def get_pseudo_instructions() -> List[PseudoInstruction]:
+    """
+    Returns a list of all psuedo instruction objects
+    """
+    return __PSEUDO_INSTRUCTIONS__
+
 def get_basic_instruction(line: ProgramLine) -> BasicInstruction:
     """
     Returns the basic instruction object of the mnemonic
