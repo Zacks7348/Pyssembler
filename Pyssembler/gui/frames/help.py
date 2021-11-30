@@ -49,7 +49,7 @@ class InstructionTable(tk.Frame):
 
         for f, d in zip(formats, descs):
             self.table.insert(tk.INSERT, '{f:<{ml}}\t{d}\n'.format(
-                f=f, d=d, ml=max_len_format))
+                f=f, d=d.ljust(max_len_desc), ml=max_len_format))
         end = self.table.index(tk.END)
         for i in range(1, int(float(end))+1):
             if self.add_with_gray:
