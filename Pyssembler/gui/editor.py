@@ -11,6 +11,7 @@ from .cmd import CommandLine
 
 from Pyssembler.mips.instructions import get_mnemonics
 import Pyssembler.mips.hardware.registers as regs
+from Pyssembler.mips.directives import Directives
 
 import config
 
@@ -327,7 +328,7 @@ class Editor(tk.Frame):
     def __read_file(self):
         with open(self.path) as f:
             self.text.insert(tk.INSERT, f.read())
-        if self.do_sh: 
+        if self.do_sh:
             self.text.highlight_syntax()
         self.saved = True
 
@@ -365,6 +366,7 @@ class EditorText(tk.Text):
         # Set up syntax highlighting tags
         self.tag_config('instr', foreground='dark orange')
         self.tag_config('reg', foreground='dodger blue')
+        self.tag_config('dir', foreground='maroon1')
         self.tag_config('comment', foreground='gray47')
         self.tag_config('error', foreground='red')
 
@@ -372,6 +374,7 @@ class EditorText(tk.Text):
         self.mnemonic_regex = '|'.join(get_mnemonics())
         self.reg_regex = '|'.join([r.replace("$", "\$")
                                   for r in regs.get_names()])
+        self.dir_regex = '|'.join(Directives.get_directives())
 
     def remove_highlight_syntax(self):
         start = "1.0"
@@ -410,12 +413,8 @@ class EditorText(tk.Text):
             self.tag_add('comment', 'matchStart', 'searchEnd')
             self.mark_set('searchEnd', self.index('matchStart'))
 
-        # Search for and highlight instruction mnemonics
-        # There should only be a max of 1 mnemonic per line,
-        # so only highlight first found
-
-        # TODO: Mnemonics surrounded by other chars are getting colored
-        # ie .word, or would be found and colored. Need to find solution
+        # Search for and highlight the first mnemonic found if any
+        # There should only be a max of 1 mnemonic per line
         count = tk.IntVar()
         index = self.search(
             self.mnemonic_regex, "searchStart", "searchEnd", count=count, regexp=True
@@ -426,6 +425,18 @@ class EditorText(tk.Text):
             self.mark_set("matchStart", index)
             self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
             self.tag_add("instr", "matchStart", "matchEnd")
+
+        # Search for and highlight the first directive found if any
+        # There should be only be a max of 1 directive per line
+        count = tk.IntVar()
+        index = self.search(self.dir_regex, 'searchStart',
+                            'searchEnd', count=count, regexp=True)
+        if not index:
+            self.tag_remove('dir', 'searchStart', 'searchEnd')
+        else:
+            self.mark_set("matchStart", index)
+            self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
+            self.tag_add("dir", "matchStart", "matchEnd")
 
         # Search for and highlight all reg names
         # TODO: Register names surrounded by other chars are getting colored
@@ -464,12 +475,12 @@ class EditorText(tk.Text):
         # generate an event if something was added or deleted,
         # or the cursor position changed
         if (args[0] in ("insert", "replace", "delete") or
-            args[0:3] == ("mark", "set", "insert") or
-            args[0:2] == ("xview", "moveto") or
-            args[0:2] == ("xview", "scroll") or
-            args[0:2] == ("yview", "moveto") or
-            args[0:2] == ("yview", "scroll")
-            ):
+                args[0:3] == ("mark", "set", "insert") or
+                args[0:2] == ("xview", "moveto") or
+                args[0:2] == ("xview", "scroll") or
+                args[0:2] == ("yview", "moveto") or
+                args[0:2] == ("yview", "scroll")
+                ):
             self.event_generate("<<Change>>", when="tail")
 
         # return what the actual widget returned
