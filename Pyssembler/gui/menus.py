@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import filedialog
 import os
 
-from .settings import SettingsWindow
+from .frames import AboutWindow, SettingsWindow, HelpWindow
 
 
 class MenuRibbon(tk.Menu):
@@ -17,9 +17,12 @@ class MenuRibbon(tk.Menu):
 
         self.file_menu = FileMenu(master)
         self.edit_menu = EditMenu(master)
+        self.help_menu = HelpMenu(master)
 
         self.add_cascade(label='File', menu=self.file_menu)
         self.add_cascade(label='Edit', menu=self.edit_menu)
+        self.add_command(label='Simulate')
+        self.add_cascade(label='Help', menu=self.help_menu)
 
 
 class FileMenu(tk.Menu):
@@ -58,3 +61,16 @@ class EditMenu(tk.Menu):
         self.add_command(label='Find')
         self.add_command(label='Replace')
         self.add_command(label='Select All')
+
+
+class HelpMenu(tk.Menu):
+    def __init__(self, master):
+        super().__init__(master, tearoff=False)
+        self.add_command(label='Help', command=lambda: HelpWindow())
+        self.add_separator()
+        self.add_command(label='Report Issue')
+        self.add_separator()
+        self.add_command(label='About', command=lambda: AboutWindow())
+
+    def on_about(self):
+        AboutWindow()
