@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter.scrolledtext import ScrolledText
 from tkinter import ttk
 
 from Pyssembler.mips.instructions import get_basic_instructions, get_pseudo_instructions
@@ -99,3 +100,12 @@ class DirectivesTable(HelpDataTable):
             descs.append(Directives.get_description(directive))
         self.insert(dirs, descs)
         self.setup()
+
+class SyscallsPage(ScrolledText):
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+
+        self.tag_config('title', font='Calibri 12 bold')
+
+        self.insert(tk.INSERT, 'What is SYSCALL?', 'title')
+        self.insert(tk.INSERT)
