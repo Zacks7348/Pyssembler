@@ -496,13 +496,6 @@
         "description": "MEM[GPR[rs] + immediate] = GPR[rt]",
         "type": "I"
     },
-    "sigrie": {
-        "format": "sigrie",
-        "encoding": "00000100000101110000000000000000",
-        "purpose": "Signal a Reserved Instruction Exception",
-        "description": "",
-        "type": "R"
-    },
     "sll": {
         "format": "sll rt, rd, immediate",
         "encoding": "00000000000{rt:05b}{rd:05b}{imm:05b}000000",

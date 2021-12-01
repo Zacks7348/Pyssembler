@@ -48,15 +48,18 @@ class HelpDataTable(tk.Frame):
         self.vsb.pack(side=tk.RIGHT, fill=tk.Y)
         self.hsb.pack(side=tk.BOTTOM, fill=tk.X)
         self.table.pack(side=tk.LEFT)
-
-    def insert(self, keys, descs):
-        max_len_format = max(len(f) for f in keys)
-        max_len_desc = max(len(d) for d in descs) 
-        # need to make sure descriptions are same length
-
-        for f, d in zip(keys, descs):
-            self.table.insert(tk.INSERT, '{f:<{ml}}\t{d}\n'.format(
-                f=f, d=d.ljust(max_len_desc), ml=max_len_format))
+    
+    def insert_new(self, *args, grayed=True):
+        maxs = []
+        for vals in args:
+            maxs.append(max(len(v) for v in vals))
+        for row_data in zip(*args):
+            for i, val in enumerate(row_data):
+                self.table.insert(tk.INSERT, f'{val:<{maxs[i]}}\t')
+            self.table.insert(tk.INSERT, '\n')
+        if grayed: self.__gray()
+    
+    def __gray(self):
         end = self.table.index(tk.END)
         for i in range(1, int(float(end))+1):
             if self.add_with_gray:
@@ -68,6 +71,7 @@ class HelpDataTable(tk.Frame):
             self.add_with_gray = not self.add_with_gray
 
 
+
 class BasicInstructionTable(HelpDataTable):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
@@ -76,7 +80,7 @@ class BasicInstructionTable(HelpDataTable):
         for instr in get_basic_instructions():
             formats.append(instr.format)
             descs.append(instr.description)
-        self.insert(formats, descs)
+        self.insert_new(formats, descs)
         self.setup()
 
 class PseudoInstructionTable(HelpDataTable):
@@ -101,11 +105,23 @@ class DirectivesTable(HelpDataTable):
         self.insert(dirs, descs)
         self.setup()
 
-class SyscallsPage(ScrolledText):
+class SyscallsPage(HelpDataTable):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
-
-        self.tag_config('title', font='Calibri 12 bold')
-
-        self.insert(tk.INSERT, 'What is SYSCALL?', 'title')
-        self.insert(tk.INSERT)
+        syscalls = [1,4,5,8,9,10,11,12,13,14,15,16,17]
+        names = [
+            'PRINT INTEGER',
+            'PRINT STRING',
+            'READ INTEGER',
+            'READ STRING',
+            'SBRK (Allocate Heap Memory)',
+            'EXIT',
+            'PRINT CHARACTER',
+            'READ CHARACTER',
+            'OPEN FILE',
+            'READ FROM FILE',
+            'WRITE TO FILE',
+            'CLOSE FILE',
+            'EXIT WITH VALUE'
+        ]
+        descs = []

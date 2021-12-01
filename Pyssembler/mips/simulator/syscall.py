@@ -25,6 +25,31 @@ class SyscallCodes:
     CLOSE_FILE = 16
     EXIT_WITH_VALUE = 17
 
+def get_syscalls():
+    """
+    Return the list of implemented syscalls, their codes, 
+    and their descriptions
+    """
+    return {
+        SyscallCodes.PRINT_INT: {
+            'service': 'PRINT INTEGER',
+            'args': '$a0 = integer to print',
+            'result': ''},
+        SyscallCodes.PRINT_STRING: {
+            'service': 'PRINT STRING', 
+            'args': '$a0 = address of null-terminated string',
+            'result': ''},
+        SyscallCodes.READ_INT: {
+            'service': 'READ INTEGER', 
+            'args': '',
+            'result': '$v0 contains the integer read'},
+        SyscallCodes.READ_STRING: {
+            'service': 'READ STRING',
+            'args': '$a0 = address of input buffer, $a1 = max chars',
+            'result': ''
+        }
+    }
+
 def __get_args():
     return registers.gpr_read('$a0'), registers.gpr_read('$a1'), registers.gpr_read('$a2')
 
