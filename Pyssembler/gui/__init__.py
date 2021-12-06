@@ -1,1 +1,1 @@
-from .app import PyssemblerApp
+from .app import run_application

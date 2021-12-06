@@ -1,487 +1,154 @@
-from posixpath import abspath, expanduser
-import tkinter as tk
-from tkinter import ttk
-from tkinter.font import Font
-from tkinter.scrolledtext import ScrolledText
-from tkinter import messagebox
-import os
+from PyQt5.QtCore import QSize, QRect, Qt
+from PyQt5.QtGui import QColor, QPainter, QTextFormat
+from PyQt5.QtWidgets import QPlainTextEdit, QTabWidget, QMessageBox, QWidget
+
 from pathlib import Path
 
-from .cmd import CommandLine
 
-from Pyssembler.mips.instructions import get_mnemonics
-import Pyssembler.mips.hardware.registers as regs
-from Pyssembler.mips.directives import Directives
-
-import config
-
-
-class IDEPage(tk.Frame):
+class EditorManager(QTabWidget):
     """
-    Home Page of the application
+    Manages a set of open editors
     """
 
-    def __init__(self, master, **kwargs):
-        super().__init__(master, **kwargs)
-        self.__init_ui()
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent=parent)
+        self.setTabsClosable(True)
+        self.__editors = {} # {path: editor}
 
-    def __init_ui(self):
-        self.explorer = Explorer(self, show='tree', selectmode=tk.BROWSE)
-        self.exp_ybar = tk.Scrollbar(
-            self, orient=tk.VERTICAL, command=self.explorer.yview)
-        self.exp_xbar = tk.Scrollbar(
-            self, orient=tk.HORIZONTAL, command=self.explorer.xview)
-        self.explorer.configure(yscroll=self.exp_ybar.set)
-        self.explorer.configure(xscroll=self.exp_xbar.set)
-        self.editor = EditorManager(self)
-
-        # Bind Events
-        self.explorer.bind('<<TreeviewSelect>>', self.on_explorer_select)
-
-        # Display widgets
-        self.explorer.place(relwidth=0.09, relheight=0.98)
-        self.exp_ybar.place(relwidth=0.01, relheight=1, relx=0.09)
-        self.exp_xbar.place(relwidth=0.09, relheight=0.02, rely=0.98)
-        self.editor.place(relwidth=0.9, relheight=1, relx=0.1)
-
-    def on_explorer_select(self, event):
-        path = self.explorer.paths.get(self.explorer.selection()[0], None)
-        if path:
-            self.editor.open_editor(path)
-
-    def save(self):
-        """
-        Saves the selected editor 
-        """
-        self.editor.nametowidget(self.editor.select()).save()
-
-    def save_as(self, path):
-        """
-        Saves the selected editor as a new file
-        """
-        self.editor.nametowidget(self.editor.select()).save_as(path)
-        self.editor.open_editor(path)
-
-
-class Explorer(ttk.Treeview):
-    """
-    A File Explorer
-    """
-
-    def __init__(self, master, **kwargs):
-        super().__init__(master, **kwargs)
-        self.paths = {}  # Used to save abs paths while displaying filenames
-        self.heading('#0', text='Explorer', anchor='w')
-        # FOR TESTING
-        self.add_path(os.path.abspath('Pyssembler/work'))
-
-    def add_path(self, path):
-        """
-        Adds a directory to the explorer. 
-        """
-        abspath = os.path.abspath(path)
-        root = self.insert('', tk.END, text=path, open=True)
-        self.__add_paths(root, abspath)
-
-    def update(self):
-        """
-        Updates the tree view to reflect changes made 
-        (creating/deleting files and folders) after initialization
-        """
-        for item in self.get_children():
-            self.delete(item)
-        self.paths.clear()
-        self.add_path(os.path.abspath('Pyssembler/work'))
-
-    def __add_paths(self, parent, path):
-        for p in os.listdir(path):
-            abspath = os.path.join(path, p)
-            old = self.insert(parent, tk.END, text=p, open=False)
-            if os.path.isdir(abspath):
-                self.__add_paths(old, abspath)
-            else:
-                # Is file
-                self.paths[old] = abspath
-
-
-class EditorManager(ttk.Notebook):
-    """
-    A Tabbed Editor organizer
-    """
-
-    __initialized = False
-
-    def __init__(self, master, **kwargs):
-        if not self.__initialized:
-            self.__initialize_custom_style()
-            EditorManager.__initialized = True
-        kwargs["style"] = "CustomNotebook"
-        super().__init__(master, **kwargs)
-        self.open_editors = {}
-        self._active = None
-        self.bind("<ButtonPress-1>", self.on_close_press, True)
-        self.bind("<ButtonRelease-1>", self.on_close_release)
-        self.update_config()
-
-    def update_config(self):
-        c = config.get_config()
-        self.font = Font(
-            family=c['editor']['font'],
-            size=c.getint('editor', 'font-size'),
-            weight='normal')
-        self.do_sh = c.getboolean(
-            'editor', 'syntax-highlighting')
-
-        for editor in self.open_editors.values():
-            editor.text.config(font=self.font)
-            if not self.do_sh:
-                editor.text.remove_highlight_syntax()
-            else:
-                editor.text.highlight_syntax()
+        self.tabCloseRequested.connect(self.close_editor)
 
     def open_editor(self, path):
         """
-        Creates a new editor tab 
+        Open an editor on the file located at path
         """
-        path = Path(path).resolve()  # Deal with different facing slashes
-        if path in self.open_editors:
-            self.select(self.open_editors[path])
+        path = Path(path).resolve()
+        if (p := str(path)) in self.__editors:
+            self.setCurrentWidget(self.__editors[p])
             return
-        self.open_editors[path] = Editor(
-            self, path, font=self.font, do_sh=self.do_sh)
-        self.add(self.open_editors[path], text=os.path.basename(path))
-        self.select(self.open_editors[path])
+        filename = path.name
+        editor = Editor(p)
+        self.addTab(editor, filename)
+        self.__editors[p] = editor
+        self.setCurrentWidget(editor)
 
-    def close_editor_by_path(self, path):
-        if path in self.open_editors:
-            self.close_editor(self.open_editors[path])
-
-    def close_editor(self, editor):
-        if editor.saved:
-            self.forget(editor)
-            return True
-        s = messagebox.askyesnocancel(
-            title='Save', message=f'Do you want to save {os.path.basename(editor.path)}?')
-        if s is None:
-            return False
-        if s:
-            editor.save()
-        self.forget(editor)
-        return True
-
-    def close_editors(self):
+    def close_editor(self, index=None):
         """
-        Close all open editors
+        Close the editor with index, or close current editor if index is None
         """
-        removed = []
-        for editor in self.open_editors.values():
-            if not self.close_editor(editor):
-                # User clicked Cancel, don't exit
-                return False
-            removed.append(editor.path)
-        for p in removed:
-            self.open_editors.pop(p)
-        return True
-
-    def save_all_editors(self):
-        for editor in self.open_editors.values():
-            editor.save()
-
-    def on_close_press(self, event):
-        """Called when the button is pressed over the close button"""
-        element = self.identify(event.x, event.y)
-        if "close" in element:
-            index = self.index("@%d,%d" % (event.x, event.y))
-            self.state(['pressed'])
-            self._active = index
-            return "break"
-
-    def on_close_release(self, event):
-        """Called when the button is released"""
-        if not self.instate(['pressed']):
-            return
-
-        element = self.identify(event.x, event.y)
-        if "close" not in element:
-            # user moved the mouse off of the close button
-            return
-
-        index = self.index("@%d,%d" % (event.x, event.y))
-        if self._active == index:
-            editor = self.nametowidget(self.tabs()[index])
-            self.close_editor(editor)
-            self.open_editors.pop(editor.path)
-            self.event_generate("<<NotebookTabClosed>>")
-
-        self.state(["!pressed"])
-        self._active = None
-
-    def __initialize_custom_style(self):
-        """
-        Thanks to Bryan Oakley who wrote an answer to this stack overflow question
-        https://stackoverflow.com/questions/39458337/is-there-a-way-to-add-close-buttons-to-tabs-in-tkinter-ttk-notebook
-        """
-        style = ttk.Style()
-        self.images = (
-            tk.PhotoImage("img_close", data='''
-                R0lGODlhCAAIAMIBAAAAADs7O4+Pj9nZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
-                d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
-                5kEJADs=
-                '''),
-            tk.PhotoImage("img_closeactive", data='''
-                R0lGODlhCAAIAMIEAAAAAP/SAP/bNNnZ2cbGxsbGxsbGxsbGxiH5BAEKAAQALAAA
-                AAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU5kEJADs=
-                '''),
-            tk.PhotoImage("img_closepressed", data='''
-                R0lGODlhCAAIAMIEAAAAAOUqKv9mZtnZ2Ts7Ozs7Ozs7Ozs7OyH+EUNyZWF0ZWQg
-                d2l0aCBHSU1QACH5BAEKAAQALAAAAAAIAAgAAAMVGDBEA0qNJyGw7AmxmuaZhWEU
-                5kEJADs=
-            ''')
-        )
-
-        style.element_create("close", "image", "img_close",
-                             ("active", "pressed", "!disabled", "img_closepressed"),
-                             ("active", "!disabled", "img_closeactive"), border=8, sticky='')
-        style.layout("CustomNotebook", [
-                     ("CustomNotebook.client", {"sticky": "nswe"})])
-        style.layout("CustomNotebook.Tab", [
-            ("CustomNotebook.tab", {
-                "sticky": "nswe",
-                "children": [
-                    ("CustomNotebook.padding", {
-                        "side": "top",
-                        "sticky": "nswe",
-                        "children": [
-                            ("CustomNotebook.focus", {
-                                "side": "top",
-                                "sticky": "nswe",
-                                "children": [
-                                    ("CustomNotebook.label", {
-                                     "side": "left", "sticky": ''}),
-                                    ("CustomNotebook.close", {
-                                     "side": "left", "sticky": ''}),
-                                ]
-                            })
-                        ]
-                    })
-                ]
-            })
-        ])
+        if index is None:
+            editor = self.widget(self.currentIndex())
+        else:
+            editor = self.widget(index)
+        if not editor.saved:
+            res = QMessageBox.warning(
+                self,
+                'Pyssembler',
+                f'Do you want to save {Path(editor.path).name}?',
+                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
+            if res == QMessageBox.Cancel:
+                return
+            if res == QMessageBox.Yes:
+                editor.save()
+        self.removeTab(index)
+        del self.__editors[editor.path]
+    
 
 
-class Editor(tk.Frame):
+class LineNumbers(QWidget):
     """
-    Container for both the text editor and line numbers
+    The Line Numbers displayed in the editor
     """
 
-    def __init__(self, master, path, **kwargs):
-        self.do_sh = kwargs.pop('do_sh', True)
-        self.font = kwargs.pop('font', None)
-        super().__init__(master, **kwargs)
+    def __init__(self, editor) -> None:
+        super().__init__(editor)
+        self.editor = editor
+
+    def sizeHint(self):
+        return QSize(self.editor.line_nums_width(), 0)
+    
+    def paintEvent(self, event) -> None:
+        self.editor.line_nums_paint_event(event)
+
+class Editor(QPlainTextEdit):
+    """
+    A Text Editor for a file located at path
+    """
+
+    def __init__(self, path) -> None:
+        super().__init__()
+        self.line_nums = LineNumbers(self)
         self.path = path
         self.saved = True
-        self.__init_ui()
+
+        self.blockCountChanged.connect(self.update_line_nums_width)
+        self.updateRequest.connect(self.update_line_nums)
+
         self.__read_file()
 
-    def __init_ui(self):
-        self.text = EditorText(self, font=self.font)
-        self.vsb = tk.Scrollbar(self, orient="vertical",
-                                command=self.text.yview)
-        self.text.config(yscrollcommand=self.vsb.set)
-        self.linenums = LineNumbers(self, self.text, width=30)
-
-        self.linenums.pack(side=tk.LEFT, fill=tk.Y)
-        self.text.pack(side=tk.LEFT, expand=True, fill=tk.BOTH)
-        self.vsb.pack(side=tk.LEFT, fil=tk.Y)
-
-        self.text.bind('<<Change>>', self._on_change)
-        self.text.bind('<KeyRelease>', self.on_key_release)
-        self.text.bind('<Configure>', self._on_change)
+        self.textChanged.connect(self.__on_text_change)
 
     def save(self):
-        """
-        Save the current state of the editor to file at self.path
-        """
         with open(self.path, 'w') as f:
-            f.write(self.text.get('1.0', tk.END))
-        self.saved = True
-
-    def save_as(self, path):
-        """
-        Save the current state of the editor into a new file
-        """
-        with open(path, 'w') as f:
-            f.write(self.text.get('1.0', tk.END))
-
-    def _on_change(self, event=None):
-        if self.do_sh:
-            self.linenums.redraw()
-
-    def on_key_release(self, event=None):
-        """
-        When the user releases a key, perform syntax highlighting
-        on that line and set saved status to False
-        """
-        self.text.highlight_syntax_line()
-        self.saved = False
+            f.write(self.toPlainText())
 
     def __read_file(self):
-        with open(self.path) as f:
-            self.text.insert(tk.INSERT, f.read())
-        if self.do_sh:
-            self.text.highlight_syntax()
+        with open(self.path, 'r') as f:
+            self.setPlainText(f.read())
         self.saved = True
 
+    def __on_text_change(self):
+        self.saved = False
 
-class LineNumbers(tk.Canvas):
-    def __init__(self, master, text, **kwargs):
-        super().__init__(master, **kwargs)
-        self.text = text
-        self.breakpoints = []
+    def line_nums_width(self):
+        digits = 1
+        count = max(1, self.blockCount())
+        while count >= 10:
+            count /= 10
+            digits += 1
+        space = 10 + self.fontMetrics().width('9') * digits
+        return space
+    
+    def update_line_nums_width(self, _):
+        self.setViewportMargins(self.line_nums_width(), 0, 0, 0)
+    
+    def update_line_nums(self, rect, dy):
 
-    def redraw(self, *args):
-        '''redraw line numbers'''
-        self.delete("all")
-
-        i = self.text.index("@0,0")
-        while True:
-            dline = self.text.dlineinfo(i)
-            if dline is None:
-                break
-            y = dline[1]
-            linenum = str(i).split(".")[0]
-            self.create_text(2, y, anchor="nw", text=linenum)
-            i = self.text.index("%s+1line" % i)
-
-
-class EditorText(tk.Text):
-    def __init__(self, master, **kwargs):
-        super().__init__(master, **kwargs)
-
-        # create a proxy for the underlying widget
-        self._orig = self._w + "_orig"
-        self.tk.call("rename", self._w, self._orig)
-        self.tk.createcommand(self._w, self._proxy)
-
-        # Set up syntax highlighting tags
-        self.tag_config('instr', foreground='dark orange')
-        self.tag_config('reg', foreground='dodger blue')
-        self.tag_config('dir', foreground='maroon1')
-        self.tag_config('comment', foreground='gray47')
-        self.tag_config('error', foreground='red')
-
-        # Save regex expressions for syntax highlighting
-        self.mnemonic_regex = '|'.join(get_mnemonics())
-        self.reg_regex = '|'.join([r.replace("$", "\$")
-                                  for r in regs.get_names()])
-        self.dir_regex = '|'.join(Directives.get_directives())
-
-    def remove_highlight_syntax(self):
-        start = "1.0"
-        end = "end"
-        self.tag_remove("comment", start, end)
-        self.tag_remove("instr", start, end)
-        self.tag_remove("reg", start, end)
-
-    def highlight_syntax(self):
-        start = '1.0'
-        end = self.index('end')
-        self.mark_set("matchStart", start)
-        self.mark_set("matchEnd", start)
-        self.mark_set("searchLimit", end)
-        for i in range(1, int(float(end))+1):
-            searchStart = self.index('{}.0'.format(i))
-            searchEnd = self.index('{} lineend'.format(searchStart))
-            self.highlight_syntax_line(searchStart, searchEnd)
-
-    def highlight_syntax_line(self, start=None, stop=None):
-        if start is None:
-            self.mark_set("searchStart", self.index("insert linestart"))
+        if dy:
+            self.line_nums.scroll(0, dy)
         else:
-            self.mark_set('searchStart', start)
-        if stop is None:
-            self.mark_set("searchEnd", self.index("insert lineend"))
-        else:
-            self.mark_set('searchEnd', stop)
+            self.line_nums.update(0, rect.y(), self.line_nums.width(),
+                       rect.height())
 
-        # If comment exists, mark everything right of # as comment
-        index = self.search('#', 'searchStart', 'searchEnd', regexp=True)
-        if index == '':
-            self.tag_remove('comment', 'searchStart', 'searchEnd')
-        else:
-            self.mark_set('matchStart', index)
-            self.tag_add('comment', 'matchStart', 'searchEnd')
-            self.mark_set('searchEnd', self.index('matchStart'))
+        if rect.contains(self.viewport().rect()):
+            self.update_line_nums_width(0)
+    
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
 
-        # Search for and highlight the first mnemonic found if any
-        # There should only be a max of 1 mnemonic per line
-        count = tk.IntVar()
-        index = self.search(
-            self.mnemonic_regex, "searchStart", "searchEnd", count=count, regexp=True
-        )
-        if index == "":
-            self.tag_remove("instr", "searchStart", "searchEnd")
-        else:
-            self.mark_set("matchStart", index)
-            self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
-            self.tag_add("instr", "matchStart", "matchEnd")
+        cr = self.contentsRect();
+        self.line_nums.setGeometry(QRect(cr.left(), cr.top(),
+                    self.line_nums_width(), cr.height()))
 
-        # Search for and highlight the first directive found if any
-        # There should be only be a max of 1 directive per line
-        count = tk.IntVar()
-        index = self.search(self.dir_regex, 'searchStart',
-                            'searchEnd', count=count, regexp=True)
-        if not index:
-            self.tag_remove('dir', 'searchStart', 'searchEnd')
-        else:
-            self.mark_set("matchStart", index)
-            self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
-            self.tag_add("dir", "matchStart", "matchEnd")
+    def line_nums_paint_event(self, event):
+        mypainter = QPainter(self.line_nums)
 
-        # Search for and highlight all reg names
-        # TODO: Register names surrounded by other chars are getting colored
-        # ie abcd$s1abc, $s1 would be found and colored. Need to find solution
-        self.tag_remove("reg", "searchStart", "searchEnd")
-        while True:
-            index = self.search(
-                self.reg_regex,
-                "searchStart",
-                "searchEnd",
-                count=count,
-                regexp=True,
-            )
-            if index == "":
-                self.tag_remove("reg", "searchStart", "searchEnd")
-                break
-            else:
-                self.mark_set("matchStart", index)
-                self.mark_set("matchEnd", "{}+{}c".format(index, count.get()))
-                self.mark_set("searchStart", "matchEnd+1c")
-                self.tag_add("reg", "matchStart", "matchEnd")
+        #mypainter.fillRect(event.rect(), Qt.lightGray)
 
-    def _proxy(self, *args):
-        # let the actual widget perform the requested action
-        cmd = (self._orig,) + args
-        try:
-            # BAND-AID FIX!!!!!!!!!!!!!!!1
-            # Copy-Pasting crashes program, most likely due to
-            # those events firing first then the selection being
-            # removed. Other events could also crash
-            # For now just catch and move on with my life
-            result = self.tk.call(cmd)
-        except:
-            return None
+        block = self.firstVisibleBlock()
+        blockNumber = block.blockNumber()
+        top = self.blockBoundingGeometry(block).translated(self.contentOffset()).top()
+        bottom = top + self.blockBoundingRect(block).height()
 
-        # generate an event if something was added or deleted,
-        # or the cursor position changed
-        if (args[0] in ("insert", "replace", "delete") or
-                args[0:3] == ("mark", "set", "insert") or
-                args[0:2] == ("xview", "moveto") or
-                args[0:2] == ("xview", "scroll") or
-                args[0:2] == ("yview", "moveto") or
-                args[0:2] == ("yview", "scroll")
-                ):
-            self.event_generate("<<Change>>", when="tail")
+        # Just to make sure I use the right font
+        height = self.fontMetrics().height()
+        while block.isValid() and (top <= event.rect().bottom()):
+            if block.isVisible() and (bottom >= event.rect().top()):
+                number = str(blockNumber + 1)
+                mypainter.setPen(Qt.lightGray)
+                mypainter.drawText(0, top, self.line_nums.width() - 10, height,
+                 Qt.AlignRight, number)
 
-        # return what the actual widget returned
-        return result
+            block = block.next()
+            top = bottom
+            bottom = top + self.blockBoundingRect(block).height()
+            blockNumber += 1

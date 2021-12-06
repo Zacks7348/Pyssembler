@@ -6,7 +6,7 @@ the program with pyssembler.pyw
 
 import logging
 
-from Pyssembler import PyssemblerApp
+from Pyssembler import run_application
 
 def setup_logging():
     """
@@ -20,8 +20,7 @@ def setup_logging():
 
 def main():
     setup_logging()
-    app = PyssemblerApp()
-    app.run()
+    run_application()
 
 if __name__ == '__main__':
     main()

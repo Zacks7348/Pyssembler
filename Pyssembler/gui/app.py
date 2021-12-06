@@ -1,144 +1,108 @@
-import tkinter as tk
-from tkinter import filedialog
-import logging
-import os
+from pathlib import Path
 
-from .menus import MenuRibbon
-from .editor import IDEPage
-from .cmd import CommandLine
-import config
+from PyQt5.QtWidgets import (
+        QAction,
+        QApplication, 
+        QHBoxLayout, 
+        QMainWindow, 
+        QVBoxLayout, 
+        QWidget,
+        QFileDialog
+    )
 
-LOGGER = logging.getLogger('Pyssembler')
+from .editor import EditorManager
+from .explorer import Explorer
 
-class PyssemblerApp:
-    """
-    Represents the Pyssembler GUI. 
-    """
-
-    def __init__(self) -> None:
-        # Configure root
-        self.root = tk.Tk()
-        self.root.title('Pyssembler')
-        self.root.minsize(1000, 500)
-        self.root.state('zoomed')
-
-        self.__init_virt_events()
+class PyssemblerWindow(QMainWindow):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.setWindowTitle('Pyssembler')
         self.__init_ui()
+        self.setMinimumSize(1000, 500)
+        self.showMaximized()
     
     def __init_ui(self):
-        self.menu = MenuRibbon(self.root)
-        self.ide = IDEPage(self.root)
-        self.cmds = CommandLine(self.root)
+        self.__init_menu()
+        self.ide = IDE()
+        self.open_action.triggered.connect(self.ide.open_file)
+        self.setCentralWidget(self.ide)
 
-        self.ide.place(relheight=0.8, relwidth=1)
-        self.cmds.place(relheight=0.2, rely=0.8, relwidth=1)
 
-        self.root.protocol('WM_DELETE_WINDOW', self.__exit)
 
-        # Bind Virtual Events
-        self.root.bind('<<Pyssembler_NewFile>>', self.__new_file)
-        self.root.bind('<<Pyssembler_OpenFile>>', self.__open_file)
-        self.root.bind('<<Pyssembler_Save>>', self.__save)
-        self.root.bind('<<Pyssembler_SaveAs>>', self.__save_as)
-        self.root.bind('<<Pyssembler_SaveAll>>', self.__save_all)
-        self.root.bind('<<Pyssembler_Exit>>', self.__exit)
-        self.root.bind('<<Pyssembler_SettingsUpdate>>', self.__config_update)
+    def __init_menu(self):
+        # Create MenuBar
+        menubar = self.menuBar()
 
-    def __init_virt_events(self):
-        """
-        Add Pyssembler virtual events to root
-        """
-        self.virt_events = (
-            '<<Pyssembler_NewFile>>', 
-            '<<Pyssembler_OpenFile>>', 
-            '<<Pyssembler_CloseFile>>', 
-            '<<Pyssembler_Save>>', 
-            '<<Pyssembler_SaveAs>>', 
-            '<<Pyssembler_SaveAll>>',
-            '<<Pyssembler_Exit>>',
-            '<<Pyssembler_SettingsUpdate>>')
-        for e in self.virt_events:
-            self.root.event_add(e, 'None')
+        # File Menu
+        self.file_menu = menubar.addMenu('File')
+        self.new_action = self.file_menu.addAction('New File')
+        self.open_action = self.file_menu.addAction('Open File')
+        self.close_action = self.file_menu.addAction('Close File')
+        self.file_menu.addSeparator()
+        self.save_action = self.file_menu.addAction('Save')
+        self.save_as_action = self.file_menu.addAction('Save As')
+        self.save_all_action = self.file_menu.addAction('Save All')
+        self.file_menu.addSeparator()
+        self.exit_action = self.file_menu.addAction('Exit')
+        self.file_menu.addSeparator()
+        self.settings_action = self.file_menu.addAction('Settings')
+
+        # Edit Menu
+        self.edit_menu = menubar.addMenu('Edit')
+        self.cut_action = self.edit_menu.addAction('Cut')
+        self.copy_action = self.edit_menu.addAction('Copy')
+        self.paste_action = self.edit_menu.addAction('Paste')
+        self.edit_menu.addSeparator()
+        self.find_action = self.edit_menu.addAction('Find')
+        self.replace = self.edit_menu.addAction('Replace')
+        self.select_all_action = self.edit_menu.addAction('Select All')
+
+        # Simulation
+        self.sim_action = menubar.addAction('Simulate')
+
+        # Help Menu
+        self.help_menu = menubar.addMenu('Help')
+        self.help_action = self.help_menu.addAction('Help')
+        self.help_menu.addSeparator()
+        self.report_issue_action = self.help_menu.addAction('Report Issue')
+        self.help_menu.addSeparator()
+        self.about_action = self.help_menu.addAction('About')
+
+class IDE(QWidget):
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self.__root_path = str(Path('Pyssembler/work').resolve())
+        layout = QHBoxLayout()
+        self.explorer = Explorer()
+        self.editor_manager = EditorManager()
+        layout.addWidget(self.explorer, stretch=0)
+        layout.addWidget(self.editor_manager, stretch=1)
+        self.setLayout(layout)
     
-    def __new_file(self, event=None):
-        """
-        Prompts user to create a new file. If a file was created, 
-        open an editor on it
-        """
-        path = filedialog.asksaveasfilename(
-                initialdir=os.getcwd()+'/Pyssembler/work',
-                title='New File',
-                filetypes=(("asm files", "*.asm"),("all files", "*.*")),
-                defaultextension="*.asm"
-        )
-        if not path: return
-        LOGGER.debug(f'Creating new file {path}...')
-        open(path, 'w').close()
-        LOGGER.debug('Created file!')
-        LOGGER.debug(f'Opening editor on {path}...')
-        self.ide.editor.open_editor(path)
-        LOGGER.debug('Opened editor!')
-        self.ide.explorer.update()
-    
-    def __open_file(self, event=None):
-        """
-        Prompts user to choose a file to open. If a file is selected,
-        open an editor on it
-        """
-        path = filedialog.askopenfilename(
-            initialdir=os.getcwd()+'/Pyssembler/work',
-            title='Open File',
-            filetypes=(('asm files', '*.asm'), ('all files', '*.*')),
-            defaultextension='*.asm'
-        )
-        if not path: return
-        LOGGER.debug(f'Opening editor on {path}...')
-        self.ide.editor.open_editor(path)
-        LOGGER.debug('Opened editor!')
-    
-    def __save(self, event=None):
-        """
-        Tell the IDE to save the selected editor
-        """
-        LOGGER.debug('Saving...')
-        self.ide.save()
-        LOGGER.debug('Saved!')
-    
-    def __save_as(self, event=None):
-        """
-        Tell the IDE to save the selected editor as a new file and
-        open a editor on the new file
-        """
-        path = filedialog.asksaveasfilename(
-            initialdir=os.getcwd()+'/Pyssembler/work',
-            title='New File',
-            filetypes=(("asm files", "*.asm"),("all files", "*.*")),
-            defaultextension="*.asm"
-        )
-        if not path: return
-        LOGGER.debug(f'Saving to {path}...')
-        self.ide.save_as()
-        LOGGER.debug('Saved!')
-        self.ide.explorer.update()
-    
-    def __save_all(self, event=None):
-        LOGGER.debug('Saving...')
-        self.ide.editor.save_all_editors()
-        LOGGER.debug('Saved!')
+    def new_file(self):
+        pass
 
-    def __exit(self, event=None):
-        LOGGER.debug('Exiting application...')
-        if not self.ide.editor.close_editors():
-            LOGGER.debug('Aborted exit')
-            return
-        LOGGER.debug('Commiting suicide')
-        self.root.destroy()
+    def open_file(self):
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        filename, _ = QFileDialog.getOpenFileName(
+            self, 
+            'Open File', 
+            self.__root_path, 
+            'All Files (*);;ASM Files (*.asm)',
+            options=options)
+        if filename:
+            self.editor_manager.open_editor(filename)
 
-    def __config_update(self, event=None):
-        self.ide.editor.update_config()
+    def close_file(self):
+        pass
 
 
-    def run(self):
-        LOGGER.debug('Starting GUI Application...')
-        self.root.mainloop()
-        LOGGER.debug('Exited GUI loop')
+def run_application():
+    app = QApplication([])
+    app.setApplicationName('Pyssembler')
+    window = PyssemblerWindow()
+    window.show()
+    app.exec()
+
+

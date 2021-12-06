@@ -1,5 +1,5 @@
 # MIPS Imports
 from .mips import *
 
-# GUI imports
-from .gui import PyssemblerApp
+# GUI Import
+from Pyssembler.gui import run_application
