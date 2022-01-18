@@ -1,3 +1,4 @@
+import logging
 from Pyssembler.mips.mips_program import ProgramLine
 from typing import Union, List
 
@@ -9,7 +10,7 @@ __BASIC_MNEMONICS__ = set(sorted([instr.mnemonic for instr in __BASIC_INSTRUCTIO
 __PSEUDO_INSTRUCTIONS__ = generate_pseudo_instructions()
 __PSEUDO_MNEMONICS__ = set(sorted([instr.mnemonic for instr in __PSEUDO_INSTRUCTIONS__]))
 __ALL_MNEMONICS__ = set(sorted(list(__BASIC_MNEMONICS__) + list(__PSEUDO_MNEMONICS__)))
-
+__LOGGER__ = logging.getLogger('Pyssembler.InstrSet')
 
 def get_basic_instruction_mnemonics() -> List[str]:
     """
@@ -135,8 +136,10 @@ def encode_instruction(line: ProgramLine, bstring=False) -> Union[int, str]:
     """
 
     # print('Attempting to Encode {}...'.format(line.tokens[0].value))
+    __LOGGER__.debug(f'Encoding {line.clean_line}...')
     instr_obj = get_basic_instruction(line)
     if instr_obj is None:
+        __LOGGER__.debug(f'Invalid instruction {line.tokens[0].value}')
         # print('\tCould not find instruction object')
         return None
     return instr_obj.encode(line, bstring)

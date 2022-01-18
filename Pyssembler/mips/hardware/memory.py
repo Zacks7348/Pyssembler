@@ -20,8 +20,9 @@ import os.path
 from ctypes import c_int32, c_uint32, c_uint16, c_int16, c_int8, c_uint8
 
 from .exceptions import *
-from .types import DataType, MemorySize
+from .types import DataType, MemorySize, MemorySegment
 from .utils import Integer
+from Pyssembler.events import trigger
 
 __MEMORY_CONFIG_FILE__ = os.path.dirname(__file__)+'/memory_config.json'
 __verbose__ = 0
@@ -267,6 +268,7 @@ def write(addr: int, val: int, size: int) -> None:
         # to get the lower address of the range we will write to
         addr = addr-(num_bytes)+1
     __write_bytes(addr, val, num_bytes)
+    trigger('onMemoryWrite', addr, val, size)
 
 
 def write_instruction(addr: int, encoding: int, instruction) -> None:
@@ -457,6 +459,20 @@ def get_modified_addresses() -> list:
 
     return list(__mem.keys())
 
+def get_segment(addr: int) -> MemorySegment:
+    if in_text_segment(addr):
+        return MemorySegment.TEXT
+    if in_ktext_segment(addr):
+        return MemorySegment.KTEXT
+    if in_data_segment(addr):
+        return MemorySegment.DATA
+    if in_kdata_segment(addr):
+        return MemorySegment.KDATA
+    if in_extern_segment(addr):
+        return MemorySegment.EXTERN
+    if in_MMIO_segment(addr):
+        return MemorySegment.MMIO
+    raise ValueError(f'Invalid address {addr}')
 
 def dump(radix=int) -> dict:
     """
@@ -474,16 +490,29 @@ def dump(radix=int) -> dict:
         A Dictionary of all modified addresses in the following
         format
 
-        {addr: [val +0, val+1, val+2, val+2]}
+        {addr: [addr +0, addr+1, addr+2, addr+3]}
     """
     formatting = {int: '{}', hex: '0x{:02x}', bin: '{:08b}'}
     if not radix in formatting:
         raise ValueError('Invalid radix type')
-    dumped = {}
+    dumped = {seg: {} for seg in MemorySegment}
+    non_aligned = []
     for addr in __mem:
-        if addr % 4 == 0:
-            dumped[addr] = []
+        if is_aligned(addr, MemorySize.WORD):
+            seg = get_segment(addr)
+            dumped[seg][addr] = []
             for i in range(MemorySize.WORD_LENGTH_BYTES):
                 val = formatting[radix].format(__mem.get(addr+i, 0), 2)
-                dumped[addr].append(val)
+                dumped[seg][addr].append(val)
+        else:
+            non_aligned.append(addr)
+    for addr in non_aligned:
+        seg = get_segment(addr)
+        for a in (addr-1, addr-2, addr-3):
+            if is_aligned(a, MemorySize.WORD) and not a in dumped[seg]:
+                dumped[seg][a] = []
+                for i in range(MemorySize.WORD_LENGTH_BYTES):
+                    val = formatting[radix].format(__mem.get(a+i, 0), 2)
+                    dumped[seg][a].append(val)
+                    break
     return dumped

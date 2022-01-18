@@ -1,17 +1,27 @@
-from pathlib import Path
+from enum import Enum
+from json import tool
+import logging
 
+from PyQt5.QtCore import QCoreApplication, Qt
+from PyQt5.QtGui import QKeySequence, QIcon
 from PyQt5.QtWidgets import (
-        QAction,
-        QApplication, 
-        QHBoxLayout, 
-        QMainWindow, 
-        QVBoxLayout, 
-        QWidget,
-        QFileDialog
-    )
+    QApplication, QMainWindow, QShortcut, QSplitter,
+    QTabWidget, QAction, QFileDialog
+)
 
-from .editor import EditorManager
-from .explorer import Explorer
+# Imports custom resources for PyQt5
+import resources
+import constants
+
+from .ide import IDE
+from .consoles import Consoles
+from .settings import SettingsWindow
+from .simulator import SimulatorWindow
+from .help import show_about
+from .find_replace import FindReplaceDialog
+
+__LOGGER__ = logging.getLogger('Pyssembler.GUI')
+
 
 class PyssemblerWindow(QMainWindow):
     def __init__(self, *args, **kwargs) -> None:
@@ -20,89 +30,306 @@ class PyssemblerWindow(QMainWindow):
         self.__init_ui()
         self.setMinimumSize(1000, 500)
         self.showMaximized()
-    
+
     def __init_ui(self):
+        """
+        Initialize widgets
+        """
+
+        __LOGGER__.debug('Initializing GUI...')
+        self.consoles = Consoles()
+        self.ide = IDE(self.consoles)
+        self.sim = SimulatorWindow(self.consoles)
+        self.main_tabs = QTabWidget(self)
+        self.main_tabs.addTab(self.ide, 'Editor')
+        self.main_tabs.addTab(self.sim, 'Simulator')
+        splitter = QSplitter()
+        splitter.setOrientation(Qt.Vertical)
+        splitter.addWidget(self.main_tabs)
+        splitter.addWidget(self.consoles)
+        splitter.setSizes([500, 100])
+        self.__init_actions()
         self.__init_menu()
-        self.ide = IDE()
-        self.open_action.triggered.connect(self.ide.open_file)
-        self.setCentralWidget(self.ide)
+        self.__init_toolbar()
+        self.__init_shortcuts()
 
+        self.ide.editor_manager.tabCloseRequested.connect(self.on_close_file)
 
+        self.setCentralWidget(splitter)
+
+    def __init_actions(self):
+        """
+        Creates all of the main actions
+        """
+
+        __LOGGER__.debug('Creating actions...')
+        self.new_file_action = QAction(
+            QIcon(':/icons/New.png'), 'New File', self)
+        self.new_file_action.triggered.connect(self.on_new_file)
+
+        self.open_file_action = QAction(
+            QIcon(':/icons/Open.png'), 'Open File', self)
+        self.open_file_action.triggered.connect(self.on_open_file)
+
+        self.close_file_action = QAction('Close', self)
+        self.close_file_action.triggered.connect(self.on_close_file)
+
+        self.close_all_files_action = QAction('Close All', self)
+        self.close_all_files_action.triggered.connect(
+            self.on_close_all_files)
+
+        self.save_file_action = QAction(
+            QIcon(':/icons/Save.png'), 'Save', self)
+        self.save_file_action.triggered.connect(
+            self.ide.editor_manager.save_editor)
+
+        self.save_file_as_action = QAction(
+            QIcon(':/icons/SaveAs.png'), 'Save As', self)
+        self.save_file_as_action.triggered.connect(
+            self.ide.save_as)
+
+        self.exit_action = QAction('Exit', self)
+        self.exit_action.triggered.connect(self.close)
+
+        self.settings_action = QAction('Settings', self)
+        self.settings_action.triggered.connect(self.on_settings)
+
+        self.cut_action = QAction(QIcon(':/icons/Cut.gif'), 'Cut', self)
+        self.cut_action.triggered.connect(
+            lambda: self.ide.current_editor.cut())
+
+        self.copy_action = QAction(QIcon(':/icons/Copy.png'), 'Copy', self)
+        self.copy_action.triggered.connect(
+            lambda: self.ide.current_editor.copy())
+
+        self.paste_action = QAction(QIcon(':/icons/Paste.png'), 'Paste', self)
+        self.paste_action.triggered.connect(
+            lambda: self.ide.current_editor.paste())
+
+        self.find_action = QAction(
+            QIcon(':/icons/Find.png'), 'Find/Replace', self)
+        self.find_action.triggered.connect(self.on_find_replace)
+
+        self.select_all_action = QAction('Select All', self)
+        self.select_all_action.triggered.connect(
+            lambda: self.ide.current_editor.selectAll())
+
+        self.assemble_action = QAction(
+            QIcon(':/icons/Assemble.png'), 'Assemble', self)
+        self.assemble_action.triggered.connect(self.on_single_file_assemble)
+
+        self.run_sim_action = QAction(
+            QIcon(':/icons/Play.png'), 'Play Simulation', self
+        )
+
+        self.step_sim_action = QAction(
+            QIcon(':/icons/Next.png'), 'Step Forward', self
+        )
+
+        self.undo_sim_action = QAction(
+            QIcon(':/icons/Previous.png'), 'Step Back', self
+        )
+
+        self.pause_sim_action = QAction(
+            QIcon(':/icons/Pause.png'), 'Pause Simulation', self
+        )
+
+        self.stop_sim_action = QAction(
+            QIcon(':/icons/Stop.png'), 'Stop Simulation', self
+        )
+
+        self.reset_sim_action = QAction(
+            QIcon(':/icons/Reset.png'), 'Reset Simulation', self
+        )
+
+        self.help_action = QAction(QIcon(':/icons/Help.png'), 'Help', self)
+
+        self.report_action = QAction('Report Issue', self)
+
+        self.about_action = QAction('About', self)
+        self.about_action.triggered.connect(lambda: show_about(self))
+
+        self.undo_action = QAction(QIcon(':/icons/Undo.png'), 'Undo', self)
+        self.undo_action.triggered.connect(self.ide.editor_manager.undo_editor)
+        self.undo_action.setEnabled(False)
+
+        self.redo_action = QAction(QIcon(':/icons/Redo.png'), 'Redo', self)
+        self.redo_action.triggered.connect(self.ide.editor_manager.redo_editor)
+        self.redo_action.setEnabled(False)
+
+        self.__set_editor_actions(False)
+        self.__set_sim_actions(False)
 
     def __init_menu(self):
-        # Create MenuBar
+        """
+        Initialize the menu bar 
+        """
+
+        __LOGGER__.debug('Initializing menu...')
         menubar = self.menuBar()
 
         # File Menu
         self.file_menu = menubar.addMenu('File')
-        self.new_action = self.file_menu.addAction('New File')
-        self.open_action = self.file_menu.addAction('Open File')
-        self.close_action = self.file_menu.addAction('Close File')
+        self.file_menu.addAction(self.new_file_action)
+        self.file_menu.addAction(self.open_file_action)
+        self.file_menu.addAction(self.close_file_action)
+        self.file_menu.addAction(self.close_all_files_action)
         self.file_menu.addSeparator()
-        self.save_action = self.file_menu.addAction('Save')
-        self.save_as_action = self.file_menu.addAction('Save As')
-        self.save_all_action = self.file_menu.addAction('Save All')
+        self.file_menu.addAction(self.save_file_action)
+        self.file_menu.addAction(self.save_file_as_action)
         self.file_menu.addSeparator()
-        self.exit_action = self.file_menu.addAction('Exit')
+        self.file_menu.addAction(self.settings_action)
         self.file_menu.addSeparator()
-        self.settings_action = self.file_menu.addAction('Settings')
+        self.file_menu.addAction(self.exit_action)
 
         # Edit Menu
         self.edit_menu = menubar.addMenu('Edit')
-        self.cut_action = self.edit_menu.addAction('Cut')
-        self.copy_action = self.edit_menu.addAction('Copy')
-        self.paste_action = self.edit_menu.addAction('Paste')
+        self.edit_menu.addAction(self.undo_action)
+        self.edit_menu.addAction(self.redo_action)
         self.edit_menu.addSeparator()
-        self.find_action = self.edit_menu.addAction('Find')
-        self.replace = self.edit_menu.addAction('Replace')
-        self.select_all_action = self.edit_menu.addAction('Select All')
+        self.edit_menu.addAction(self.cut_action)
+        self.edit_menu.addAction(self.copy_action)
+        self.edit_menu.addAction(self.paste_action)
+        self.edit_menu.addSeparator()
+        self.edit_menu.addAction(self.find_action)
 
         # Simulation
-        self.sim_action = menubar.addAction('Simulate')
+        self.menu_sim_action = menubar.addAction('Simulate')
+        self.menu_sim_action.triggered.connect(self.on_single_file_assemble)
 
         # Help Menu
         self.help_menu = menubar.addMenu('Help')
-        self.help_action = self.help_menu.addAction('Help')
+        self.help_menu.addAction(self.help_action)
         self.help_menu.addSeparator()
-        self.report_issue_action = self.help_menu.addAction('Report Issue')
+        self.help_menu.addAction(self.report_action)
         self.help_menu.addSeparator()
-        self.about_action = self.help_menu.addAction('About')
+        self.help_menu.addAction(self.about_action)
 
-class IDE(QWidget):
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.__root_path = str(Path('Pyssembler/work').resolve())
-        layout = QHBoxLayout()
-        self.explorer = Explorer()
-        self.editor_manager = EditorManager()
-        layout.addWidget(self.explorer, stretch=0)
-        layout.addWidget(self.editor_manager, stretch=1)
-        self.setLayout(layout)
+    def __init_toolbar(self):
+        tool_bar = self.addToolBar('Toolbar')
+        tool_bar.addAction(self.new_file_action)
+        tool_bar.addAction(self.open_file_action)
+        tool_bar.addAction(self.save_file_action)
+        tool_bar.addAction(self.save_file_as_action)
+        tool_bar.addSeparator()
+        tool_bar.addAction(self.undo_action)
+        tool_bar.addAction(self.redo_action)
+        tool_bar.addAction(self.cut_action)
+        tool_bar.addAction(self.copy_action)
+        tool_bar.addAction(self.paste_action)
+        tool_bar.addAction(self.find_action)
+        tool_bar.addSeparator()
+        tool_bar.addAction(self.assemble_action)
+        tool_bar.addAction(self.run_sim_action)
+        tool_bar.addAction(self.step_sim_action)
+        tool_bar.addAction(self.undo_sim_action)
+        tool_bar.addAction(self.pause_sim_action)
+        tool_bar.addAction(self.stop_sim_action)
+        tool_bar.addAction(self.reset_sim_action)
+        tool_bar.addSeparator()
+        tool_bar.addAction(self.help_action)
+
+    def __init_shortcuts(self):
+        __LOGGER__.debug('Creating shortcuts...')
+        self.new_file_action.setShortcut(QKeySequence('Ctrl+N'))
+        self.open_file_action.setShortcut(QKeySequence('Ctrl+O'))
+        self.close_file_action.setShortcut(QKeySequence('Ctrl+W'))
+        self.save_file_action.setShortcut(QKeySequence('Ctrl+S'))
+        self.save_file_as_action.setShortcut(QKeySequence('Ctrl+Shift+S'))
+        self.undo_action.setShortcut(QKeySequence('Ctrl+Z'))
+        self.redo_action.setShortcut(QKeySequence('Ctrl+Y'))
+        self.cut_action.setShortcut(QKeySequence('Ctrl+X'))
+        self.copy_action.setShortcut(QKeySequence('Ctrl+C'))
+        self.paste_action.setShortcut(QKeySequence('Ctrl+V'))
+        self.find_action.setShortcut(QKeySequence('Ctrl+F'))
+        self.select_all_action.setShortcut(QKeySequence('Ctrl+A'))
+
+    def closeEvent(self, event=None):
+        # Perform exit sequence
+        __LOGGER__.info('Starting exit sequence...')
+        if not self.ide.editor_manager.close_editors():
+            # User clicked cancel, stop exit sequence
+            __LOGGER__.info('Exit sequence aborted!')
+            event.ignore()
+
+        # Exit
+        __LOGGER__.info('Goodbye world')
+        event.accept
+
+    def on_open_file(self):
+        """
+        Opens an editor in the IDE on a file chosen by the user. 
+        """
+
+        if self.ide.open_file():
+            self.__set_editor_actions(True)
+
+    def on_new_file(self):
+        self.ide.editor_manager.open_editor()
+        self.__set_editor_actions(True)
+
+    def on_close_file(self, index=None):
+        self.ide.editor_manager.close_editor(index)
+        if len(self.ide.editor_manager.editors) == 0:
+            self.__set_editor_actions(False)
+
+    def on_close_all_files(self):
+        if self.ide.editor_manager.close_editors():
+            self.__set_editor_actions(False)
+
+    def on_settings(self):
+        self.settings_window = SettingsWindow()
+        self.settings_window.exec()
+
+    def on_single_file_assemble(self):
+        main = self.ide.editor_manager.get_current_path()
+        if not main:
+            return
+        res = self.sim.init_sim_env(main)
+        if res:
+            __LOGGER__.debug('Switching to Simulation window...')
+            self.main_tabs.setCurrentIndex(1)  # Switch to sim window
+            self.__set_sim_actions(True)
+        
+    def on_find_replace(self):
+        if self.main_tabs.currentIndex == 1:
+            self.main_tabs.setCurrentIndex(0) # Switch to IDE window
+        self.find_replace_window = FindReplaceDialog(self.ide.editor_manager)
+        self.find_replace_window.exec()
+        
+
+    def __set_editor_actions(self, b: bool):
+        self.close_file_action.setEnabled(b)
+        self.close_all_files_action.setEnabled(b)
+        self.save_file_action.setEnabled(b)
+        self.save_file_as_action.setEnabled(b)
+        self.cut_action.setEnabled(b)
+        self.copy_action.setEnabled(b)
+        self.paste_action.setEnabled(b)
+        self.find_action.setEnabled(b)
+        self.select_all_action.setEnabled(b)
+        self.assemble_action.setEnabled(b)
+        self.undo_action.setEnabled(b)
+        self.redo_action.setEnabled(b)
     
-    def new_file(self):
-        pass
-
-    def open_file(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
-        filename, _ = QFileDialog.getOpenFileName(
-            self, 
-            'Open File', 
-            self.__root_path, 
-            'All Files (*);;ASM Files (*.asm)',
-            options=options)
-        if filename:
-            self.editor_manager.open_editor(filename)
-
-    def close_file(self):
-        pass
+    def __set_sim_actions(self, b: bool):
+        self.run_sim_action.setEnabled(b)
+        self.step_sim_action.setEnabled(b)
+        self.undo_sim_action.setEnabled(b)
+        self.pause_sim_action.setEnabled(b)
+        self.stop_sim_action.setEnabled(b)
+        self.reset_sim_action.setEnabled(b)
 
 
 def run_application():
+    __LOGGER__.info('Starting Pyssembler GUI app...')
+    QCoreApplication.setOrganizationName('zschreiner')
+    QCoreApplication.setOrganizationDomain('zschreiner.dev')
+    QCoreApplication.setApplicationName('Pyssembler')
     app = QApplication([])
+    __LOGGER__.info('Creating GUI...')
     app.setApplicationName('Pyssembler')
     window = PyssemblerWindow()
     window.show()
+    __LOGGER__.info('Running GUI app...')
     app.exec()
-
-

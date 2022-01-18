@@ -1,0 +1,26 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <qresource prefix="icons">
+        <file alias="Assemble.png">images/Assemble.png</file>
+        <file alias="Copy.png">images/Copy.png</file>
+        <file alias="Cut.gif">images/Cut.gif</file>
+        <file alias="Find.png">images/Find.png</file>
+        <file alias="Help.png">images/Help.png</file>
+        <file alias="New.png">images/New.png</file>
+        <file alias="Next.png">images/Next.png</file>
+        <file alias="Open.png">images/Open.png</file>
+        <file alias="Paste.png">images/Paste.png</file>
+        <file alias="Pause.png">images/Pause.png</file>
+        <file alias="Play.png">images/Play.png</file>
+        <file alias="Previous.png">images/Previous.png</file>
+        <file alias="Print.gif">images/Print.gif</file>
+        <file alias="Redo.png">images/Redo.png</file>
+        <file alias="Reset.png">images/Reset.png</file>
+        <file alias="Save.png">images/Save.png</file>
+        <file alias="SaveAs.png">images/SaveAs.png</file>
+        <file alias="StepBack.png">images/StepBack.png</file>
+        <file alias="StepForward.png">images/StepForward.png</file>
+        <file alias="Stop.png">images/Stop.png</file>
+        <file alias="Undo.png">images/Undo.png</file>
+    </qresource>
+</RCC>

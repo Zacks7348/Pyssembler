@@ -22,38 +22,17 @@ class Simulator:
     to assemble mips instructions
     """
 
-    def __init__(self, step=False, states=False) -> None:
+    def __init__(self) -> None:
 
         # If step=True, wait for user input before executing next instr
-        self.step = step
-        self.states = states
-
-    def __output_registers(self):
-        reg_dump = GPR.dump()
-        reg_names = list(reg_dump.keys())
-        reg_dumps = ''
-        i = 0
-        while i < len(reg_names):
-            reg_dumps += '[{:<5}: {:>10}]'.format(
-                reg_names[i], reg_dump[reg_names[i]])
-            #print(i+1, i+1%4, reg_names[i])
-            if (i+1) % 4 == 0:
-                reg_dumps += '\n'
-            i += 1
-
-        #regs = ''.join(['[{}: {}]\n'.format(reg, val) for reg, val in registers.gpr_dump().items()])
-        LOGGER.info('MIPS32 Registers: \n'+reg_dumps)
-
-    def __output_memory(self):
-        LOGGER.info(json.dumps(memory.dump(), indent=2))
-        #print(json.dumps(memory.dump(), indent=2))
+        self.step = False
 
     def __init_cpu(self, pc_start):
         GPR.pc = pc_start
         GPR.write('$sp', memory.MemoryConfig.stack_pointer)
         GPR.write('$gp', memory.MemoryConfig.global_pointer)
 
-    def simulate(self, pc_start=memory.MemoryConfig.text_base_addr):
+    def simulate(self, pc_start=memory.MemoryConfig.text_base_addr, step=False):
         """
         Starts simulation of mips program. Will continue reading instructions
         at MEM[PC] until an exit syscall is executed or the program drops off
@@ -70,6 +49,7 @@ class Simulator:
             The first instruction address of the program
         """
         self.__init_cpu(pc_start)
+        self.step = step
         LOGGER.info(f'Starting simulator at PC={pc_start}...')
         while not (instr := memory.read_instruction(GPR.pc)) is None:
             sim_func = get_sim_function_by_mnemonic(instr.tokens[0].value)

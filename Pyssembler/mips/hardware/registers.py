@@ -10,6 +10,7 @@ from ctypes import c_uint32, c_int32
 
 from .memory import MemorySize
 from .utils import Integer
+from Pyssembler.events import trigger
 
 
 class _Processor:
@@ -17,7 +18,8 @@ class _Processor:
     Base class for MIPS Processor Register Files 
     """
 
-    def __init__(self) -> None:
+    def __init__(self, name) -> None:
+        self.processor_name = name
         self._regs = {}
         self.reg_names = {}
         self._formatting = {int: '{}', hex: '0x{:08x}', bin: '{:032b}'}
@@ -63,6 +65,7 @@ class _Processor:
         if signed:
             # Convert unsigned int to signed
             return c_int32(self._regs[reg]).value
+        # Trigger onRegisterRead event
         return self._regs[reg]
 
     def write(self, reg: Union[int, str], val: int) -> None:
@@ -83,6 +86,7 @@ class _Processor:
         if not reg in self._regs:
             raise ValueError('Invalid Register address {}'.format(reg))
         self._regs[reg] = c_uint32(val).value
+        trigger('onRegisterWrite', reg, self.processor_name, val)
     
     def dump(self, radix=int, signed=True) -> dict:
         """
@@ -113,7 +117,7 @@ class _GPR(_Processor):
     Represents MIPS General Purpose Registers 
     """
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__('GPR')
         self.reg_names = {'$zero': 0, '$at': 1, '$v0': 2, '$v1': 3,
                       '$a0': 4, '$a1': 5, '$a2': 6, '$a3': 7,
                       '$t0': 8, '$t1': 9, '$t2': 10, '$t3': 11,
@@ -162,7 +166,7 @@ class _CP0(_Processor):
     """
 
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__('CP0')
         self.reg_names = {'$8': 8, '$12': 12, '$13': 13, '$14': 14}
         self._regs = {addr: 0 for addr in self.reg_names.values()}
         self.VADDR = 8
@@ -263,3 +267,10 @@ def get_names() -> list:
 
     # Cast to set first to remove duplicates
     return list(set(list(GPR.reg_names.keys()) + list(CP0.reg_names.keys())))
+
+def get_name_from_address(addr: int) -> str:
+    """
+    Returns the name of the register at addr.
+    """
+
+    return GPR.get_name_from_address(addr)

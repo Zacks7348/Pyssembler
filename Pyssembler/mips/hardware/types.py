@@ -1,3 +1,6 @@
+from enum import Enum
+
+
 class DataType:
     """
     Stores some usefull integer max/min values
@@ -14,6 +17,7 @@ class DataType:
     MAX_SINT8 = 0x7F
     MIN_SINT8 = -0x80
 
+
 class MemorySize:
     """
     Stores some useful memory size values
@@ -25,3 +29,12 @@ class MemorySize:
     WORD_LENGTH_BYTES = WORD // BYTE
     HWORD_LENGTH_BYTES = HWORD // BYTE
     BYTE_LENGTH_BYTES = BYTE // BYTE
+
+
+class MemorySegment(Enum):
+    TEXT = 0
+    EXTERN = 1
+    DATA = 2
+    KTEXT = 3
+    KDATA = 4
+    MMIO = 5

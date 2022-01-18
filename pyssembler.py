@@ -5,6 +5,7 @@ the program with pyssembler.pyw
 """
 
 import logging
+from datetime import datetime
 
 from Pyssembler import run_application
 
@@ -15,8 +16,14 @@ def setup_logging():
     log = logging.getLogger('Pyssembler')
     log.setLevel(logging.DEBUG)
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter('[%(name)s][%(levelname)s] %(message)s'))
+    formatter = logging.Formatter('[%(name)s][%(levelname)s] %(message)s')
+    handler.setFormatter(formatter)
     log.addHandler(handler)
+
+    # filename = "Pyssembler/logs/pyssembler-{}.log".format(datetime.now().strftime("%y-%m-%d-%M-%S"))
+    # handler = logging.FileHandler(filename=filename, encoding='UTF-8', mode='w')
+    # handler.setFormatter(formatter)
+    # log.addHandler(handler)
 
 def main():
     setup_logging()

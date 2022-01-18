@@ -181,7 +181,11 @@ class ProgramLine:
 
     @property
     def src_line(self):
-        return self.source.line 
+        return self.source.line
+    
+    @property
+    def assembly(self):
+        return ' '.join([str(token.src_val) for token in self.tokens])
 
     def __str__(self) -> str:
         return 'ProgramStatement(file={}, source={})'.format(

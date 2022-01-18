@@ -50,7 +50,7 @@ class Token:
     """
 
     def __init__(self, value: Union[int, str], type_: TokenType,
-                 linenum=0, charnum=0) -> None:
+                 linenum=0, charnum=0, src_val=None) -> None:
         """
         Parameters
         ----------
@@ -64,6 +64,7 @@ class Token:
             The character position the token first appears at 
         """
         self.value = value
+        self.src_val = src_val
         self.type = type_
         self.linenum = linenum
         self.charnum = charnum
@@ -117,29 +118,29 @@ def __match_token(token_str: str) -> tuple:
     #import pdb; pdb.set_trace()
 
     if token_str == '(':
-        return TokenType.LEFT_P, token_str
+        return TokenType.LEFT_P, token_str, token_str
     elif token_str == ')':
-        return TokenType.RIGHT_P, token_str
+        return TokenType.RIGHT_P, token_str, token_str
     elif token_str == ':':
-        return TokenType.COLON, token_str
+        return TokenType.COLON, token_str, token_str
     elif token_str.startswith('#'):
-        return TokenType.COMMENT, token_str
+        return TokenType.COMMENT, token_str, token_str
     elif is_register(token_str):
-        return TokenType.REGISTER, GPR.get_addr(token_str)
+        return TokenType.REGISTER, GPR.get_addr(token_str), token_str
     elif Directives.is_directive(token_str):
-        return TokenType.DIRECTIVE, token_str
+        return TokenType.DIRECTIVE, token_str, token_str
     elif not (imm := Integer.from_string(token_str)) is None:
         # token_str is an immediate
-        return TokenType.IMMEDIATE, imm
+        return TokenType.IMMEDIATE, imm, token_str
     elif token_str.startswith('"') and token_str.endswith('"') and token_str != '"':
         # token_str is an ascii string and has already been parsed
         # by the tokenizer, just need to remove surrounding double quotes
-        return TokenType.ASCII, token_str[1:-1]
+        return TokenType.ASCII, token_str[1:-1], token_str
     elif instr_set.is_mnemonic(token_str):
         # token_str is an instruction mnemonic
-        return TokenType.MNEMONIC, token_str
+        return TokenType.MNEMONIC, token_str, token_str
     elif __is_valid_symbol(token_str):
-        return TokenType.LABEL, token_str
+        return TokenType.LABEL, token_str, token_str
     else:
         return None, None
 
@@ -152,7 +153,7 @@ def __add_token(token_list, token_str, src_file, linenum, token_start):
     #print('\tFound potential token {}'.format(repr(token_str)))
     if token_str == '' or token_str == '\n':
         return  # token_str is empty string or just a newline char
-    token_type, val = __match_token(token_str)
+    token_type, val, src_val = __match_token(token_str)
     if not token_type:
         # Invalid token
         raise TokenizationError(
@@ -161,7 +162,7 @@ def __add_token(token_list, token_str, src_file, linenum, token_start):
             charnum=token_start,
             message='Invalid token encountered'
         )
-    token_list.append(Token(val, token_type, linenum, token_start))
+    token_list.append(Token(val, token_type, linenum, token_start, src_val=src_val))
 
 
 def tokenize_line(line: str, src_file: str, linenum: int) -> list:

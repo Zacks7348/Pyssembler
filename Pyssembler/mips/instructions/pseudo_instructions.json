@@ -67,11 +67,11 @@
     "lw rd, immediate": {
         "name": "Load Word",
         "description": "Load word from MEM[immedate] into GPR[rd]",
-        "expansion": ["lw rd, immediate($0)"]
+        "expansion": ["lw rd, immediate($zero)"]
     },
     "lw rd, label": {
         "name": "Load Word",
         "description": "Load word from the label address into GPR[rd]",
-        "expansion": ["lw rd, label($0)"]
+        "expansion": ["lw rd, label($zero)"]
     }
 }

@@ -11,7 +11,7 @@ from .hardware import memory, registers
 from .directives import DirectiveInfo, Directives
 from .tokenizer import Token, TokenType, tokenize_line, tokenize_program
 
-LOGGER = logging.getLogger('PYSSEMBLER.ASSEMBLER')
+__LOGGER__ = logging.getLogger('Pyssembler.Assembler')
 
 class Segment(Enum):
     DATA = 0
@@ -84,6 +84,11 @@ class Assembler:
         the program in later steps
         """
 
+        # Clear Segments
+        for segment in self.segment_contents.values():
+            segment.clear()
+
+        # Initialize memory pointers
         self.text_write = MemoryConfig.text_base_addr + text_offset
         self.ktext_write = MemoryConfig.ktext_base_addr + ktext_offset
         self.data_write = MemoryConfig.data_base_addr + data_offset
@@ -97,17 +102,16 @@ class Assembler:
         # Tokenize the program
         # This will raise a TokenizationError if something goes wrong,
         # let that error go up to caller
-        LOGGER.debug('Tokenizing program...')
+        __LOGGER__.debug('Tokenizing program...')
         tokenize_program(self.program)
-        LOGGER.debug('Tokenization complete!')
+        __LOGGER__.debug('Tokenization complete!')
 
         # Expand any pseudo instructions
-        LOGGER.debug('Expanding pseudo instructions...')
+        __LOGGER__.debug('Expanding pseudo instructions...')
         i = 0
         while i < len(program):
             line = program.get_line(i)
             if instr_set.is_pseudo_instruction(line):
-                #import pdb; pdb.set_trace()
                 expanded = instr_set.expand_pseudo_instruction(line)
                 if not expanded:
                     raise AssemblerError(
@@ -124,9 +128,9 @@ class Assembler:
                 i += num_instr
                 continue
             i += 1
-        LOGGER.debug('Expanded all pseudo instructions!')
+        __LOGGER__.debug('Expanded all pseudo instructions!')
 
-        LOGGER.debug('Generating symbol tables...')
+        __LOGGER__.debug('Generating symbol tables...')
         for line in self.program:
             self.current_line = line
 
@@ -218,7 +222,7 @@ class Assembler:
                             linenum=line.linenum,
                             charnum=line.tokens[1].charnum,
                             message='Referenced label {} not defined'.format(token.value)))
-        LOGGER.debug('Finished generating symbol tables!')
+        __LOGGER__.debug('Finished generating symbol tables!')
 
 
     def assemble(self, program: MIPSProgram, text_offset: int = 0,
@@ -251,11 +255,11 @@ class Assembler:
             The starting data address to write data declared as external to (default=0)
         """
 
-        LOGGER.debug('Preparing to assemble program...')
+        __LOGGER__.debug('Preparing to assemble program...')
         self.__prepare_for_assembly(program, text_offset, ktext_offset, data_offset,
                                     kdata_offset, extern_offset)
-        LOGGER.debug('Preparations complete!')
-        LOGGER.debug('Assembling program...')
+        __LOGGER__.debug('Preparations complete!')
+        __LOGGER__.debug('Assembling program...')
 
         for segment_type in (Segment.DATA, Segment.TEXT):
             # Tuple ensures we write program data to memory first before
@@ -267,7 +271,7 @@ class Assembler:
                     self.__handle_directive(line)
                 elif line.tokens[0].type == TokenType.MNEMONIC:
                     self.__handle_instruction(line)
-        LOGGER.debug('Successfully assembled program!')
+        __LOGGER__.debug('Successfully assembled program!')
 
     def __handle_instruction(self, line):
         """
@@ -276,7 +280,7 @@ class Assembler:
         Need to replace labels with immediate value and replace integers read as strings
         as actual ints
         """
-        LOGGER.debug('Encoding instruction at {}({})...'.format(line.filename, line.linenum))
+        __LOGGER__.debug('Encoding instruction at {}({})...'.format(line.filename, line.linenum))
         encoding = instr_set.encode_instruction(line)
         if encoding is None:
             # Something went wrong, could not assemble instruction
@@ -287,9 +291,9 @@ class Assembler:
                 message='Could not assemble instruction')
         line.binary_instr = encoding
         #memory.write(line.memory_addr, encoding, size=MemorySize.WORD)
-        LOGGER.debug('Writing instruction to memory...')
+        __LOGGER__.debug('Writing instruction to memory...')
         memory.write_instruction(line.memory_addr, encoding, line)
-        LOGGER.debug('Done')
+        __LOGGER__.debug('Done')
 
     def __handle_directive(self, line):
         """Helper function for dealing with directives that write values into memory
