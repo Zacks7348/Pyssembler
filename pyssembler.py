@@ -1,13 +1,12 @@
 """
-This is the main script of this program. Running Pyssembler
-with this file will also include a console. For just a GUI run 
-the program with pyssembler.pyw
+This is the main script of this program.
 """
 
 import logging
-from datetime import datetime
+# from datetime import datetime
 
 from Pyssembler import run_application
+
 
 def setup_logging():
     """
@@ -25,9 +24,11 @@ def setup_logging():
     # handler.setFormatter(formatter)
     # log.addHandler(handler)
 
+
 def main():
     setup_logging()
     run_application()
+
 
 if __name__ == '__main__':
     main()

@@ -1,4 +1,4 @@
-from Pyssembler.mips.hardware.exceptions import AddressErrorException, ArithmeticOverflowException, MIPSException, MIPSExceptionCodes, SyscallException
+from Pyssembler.mips.hardware.exceptions import MIPSException, MIPSExceptionCodes, SyscallException
 import json
 import os.path
 import ast
@@ -25,65 +25,69 @@ class Simulator:
     def __init__(self) -> None:
 
         # If step=True, wait for user input before executing next instr
-        self.step = False
+        self.__step = False
 
-    def __init_cpu(self, pc_start):
-        GPR.pc = pc_start
-        GPR.write('$sp', memory.MemoryConfig.stack_pointer)
-        GPR.write('$gp', memory.MemoryConfig.global_pointer)
-
-    def simulate(self, pc_start=memory.MemoryConfig.text_base_addr, step=False):
+    def start(self, pc_start=memory.MemoryConfig.text_base_addr, step=False):
         """
-        Starts simulation of mips program. Will continue reading instructions
-        at MEM[PC] until an exit syscall is executed or the program drops off
-        (there is no instruction at MEM[PC]). 
-
-        The simulator works by getting the associated sim function of the
-        instruction and calling it. Each sim function will perform it's logic
-        and raise a MIPSException if neccessary. These exceptions are caught here
-        and will transfer control to the exception handler.
+        Starts MIPS32 simulator.
 
         Attributes
         ----------
         pc_start: int, default=memory.MemoryConfig.text_base_addr
             The first instruction address of the program
+        step: bool, default=False
+            If False, runs the entire simulation until the program stops. Setting to True
+            allows to run each execution step with the execute_instruction function
         """
-        self.__init_cpu(pc_start)
-        self.step = step
+        self.__step = step
+
+        # Set up the environment
+        GPR.pc = pc_start
+        GPR.write('$sp', memory.MemoryConfig.stack_pointer)
+        GPR.write('$gp', memory.MemoryConfig.global_pointer)
+
         LOGGER.info(f'Starting simulator at PC={pc_start}...')
-        while not (instr := memory.read_instruction(GPR.pc)) is None:
-            sim_func = get_sim_function_by_mnemonic(instr.tokens[0].value)
-            LOGGER.debug('Executing "{}"...'.format(instr.clean_line))
+        if self.__step:
+            return
+        while True:
             try:
-                sim_func(instr)
-            except MIPSException as e:
-                res = self.exception_handler(e)
-                if res == 0:
-                    LOGGER.info('Exiting...')
-                    return
-            LOGGER.debug('Finished!')
-            if self.states:
-                self.__output_registers()
-            if self.step:
-                while True:
-                    cmd = input().lower()
-                    if cmd == 'next' or cmd == 'n':
-                        break
-                    elif cmd == 'show registers':
-                        self.__output_registers()
-                    elif cmd == 'show memory':
-                        self.__output_memory()
-                    elif cmd == 'quit' or cmd == 'q':
-                        return
-                    else:
-                        continue
-            GPR.increment_pc()
-        LOGGER.info('Stopping simulation: Program dropped off')
+                self.execute_instruction()
+            except SimulationExitException:
+                # Program stopped executing
+                return
+
+    def execute_instruction(self):
+        """
+        Executes the instruction located at PC
+
+        Raises a SimulationExitException if the program stops. This
+        could be caused by the following reasons:
+        - Program dropped off
+        - Exit system call was executed
+        - Unhandled exception
+
+        Returns the address of the instruction executed
+        """
+        instr = memory.read_instruction(GPR.pc)
+        if not instr:
+            # No instruction at PC, program dropped off
+            raise SimulationExitException('Program Dropped Off')
+        sim_func = get_sim_function_by_mnemonic(instr.tokens[0].value)
+        try:
+            sim_func(instr)
+        except MIPSException as e:
+            # May Raise SimulationExitException, let it bubble up
+            self.exception_handler(e)
+        GPR.increment_pc()
+        return instr.memory_addr
 
     def exception_handler(self, exception: MIPSException):
         """
-        The default exception handler. Performs neccessary actions based on the
-        exception code in exception. Returns 0 to exit simulation
+        The default exception handler. Performs necessary actions based on the
+        exception code in exception.
+
+        Raises SimulationExitException if there is no exception handler written to
+        memory
         """
 
         # Set CP0 STATUS Register Exception Level bit
@@ -101,6 +105,5 @@ class Simulator:
         if not memory.read_instruction(memory.MemoryConfig.ktext_base_addr):
             # No exception handler was written to memory
             LOGGER.info(str(exception))
-            return 0
-        return 1
+            raise SimulationExitException(0)
         

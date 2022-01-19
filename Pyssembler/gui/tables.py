@@ -1,10 +1,18 @@
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QTabWidget, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt5.QtGui import QBrush, QColor
+from PyQt5.QtWidgets import (
+    QCheckBox,
+    QHBoxLayout,
+    QTabWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget)
 
-from Pyssembler.mips.hardware import memory, MemorySegment
+from Pyssembler.mips.hardware import memory, MemorySegment, GPR, CP0
 
 
-class SegmentTable(QTableWidget):
+class DataTable(QTableWidget):
     def __init__(self, header, parent=None):
         super().__init__(parent)
         self.header = header
@@ -26,31 +34,52 @@ class SegmentTable(QTableWidget):
             self.setItem(0, col, item)
 
     def add_row(self, *args):
-        self.setRowCount(self.rowCount()+1)
+        self.setRowCount(self.rowCount() + 1)
         for col, item in enumerate(args):
             item = QTableWidgetItem(str(item))
             item.setFlags(item.flags() ^ Qt.ItemIsEditable)
-            self.setItem(self.rowCount()-1, col, item)
+            self.setItem(self.rowCount() - 1, col, item)
+        return self.rowCount() - 1
 
 
-class TextSegmentWindow(SegmentTable):
+class TextSegmentTable(DataTable):
     def __init__(self, parent=None):
         super().__init__(['Address', 'Encoding', 'Source', 'Assembly'], parent)
+        self.__maps = {}  # Maps an address to the row in the table
+        self.__highlighted_row = None
 
     def load_program(self, program):
         """
         Loads an assembled MIPSProgram object into the table
         """
         self.reset_table()
+        self.__maps.clear()
         instrs = sorted(
             [line for line in program.program_lines if line.memory_addr],
             key=lambda p: p.memory_addr)
         for instr in instrs:
-            self.add_row(f'0x{instr.memory_addr:08x}', f'0x{instr.binary_instr:08x}',
-                         instr.clean_line, instr.assembly)
+            row = self.add_row(f'0x{instr.memory_addr:08x}', f'0x{instr.binary_instr:08x}',
+                               instr.clean_line, instr.assembly)
+            self.__maps[instr.memory_addr] = row
+
+    def highlight(self, addr: int):
+        """
+        Highlights the row where instruction at addr is located
+        """
+        row = self.__maps.get(addr)
+        if not row:
+            return
+        if self.__highlighted_row:
+            # Change background to default, (0,0) will never be highlighted so use that
+            self.__highlight_row(self.__highlighted_row, self.item(0, 0).background())
+        self.__highlight_row(row, QBrush(QColor(1, 1, 0)))
+
+    def __highlight_row(self, row, color):
+        for col in range(self.columnCount()):
+            self.item(row, col).setBackground(color)
 
 
-class DataSegmentWindow(QWidget):
+class DataSegmentTable(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -59,7 +88,7 @@ class DataSegmentWindow(QWidget):
         self.addr_radix = hex
         self.val_radix = hex
 
-        self.mem_table = SegmentTable(
+        self.mem_table = DataTable(
             ['Address', 'Value (+0)', 'Value (+1)',
              'Value (+2)', 'Value (+3)', 'Word Value'], parent)
         self.mem_table.reset_table()
@@ -91,7 +120,9 @@ class DataSegmentWindow(QWidget):
         self.hex_vals = QCheckBox('Hexadecimal Values')
         self.hex_vals.setChecked(True)
         self.hex_vals.stateChanged.connect(self.on_val_hex_check)
-        for segments in ((self.text_seg, self.ktext_seg), (self.data_seg, self.kdata_seg), (self.ext_seg, self.mmio_seg), (self.hex_addr, self.hex_vals)):
+        for segments in (
+                (self.text_seg, self.ktext_seg), (self.data_seg, self.kdata_seg), (self.ext_seg, self.mmio_seg),
+                (self.hex_addr, self.hex_vals)):
             col = QVBoxLayout()
             for seg in segments:
                 col.addWidget(seg)
@@ -107,8 +138,8 @@ class DataSegmentWindow(QWidget):
                 for addr in sorted(mem[seg].keys()):
                     vals = mem[seg][addr]
                     self.mem_table.add_row(
-                        self.fmt[self.addr_radix].format(addr), 
-                        vals[0], vals[1], vals[2], vals[3], 
+                        self.fmt[self.addr_radix].format(addr),
+                        vals[0], vals[1], vals[2], vals[3],
                         self.fmt[self.val_radix].format(memory.read_word(addr)))
 
     def on_check(self, state, seg):
@@ -135,14 +166,14 @@ class DataSegmentWindow(QWidget):
 
     def on_mmio_check(self, state):
         self.on_check(state, MemorySegment.MMIO)
-    
+
     def on_addr_hex_check(self, state):
         if state == Qt.Checked:
             self.addr_radix = hex
         else:
             self.addr_radix = int
         self.load_memory()
-    
+
     def on_val_hex_check(self, state):
         if state == Qt.Checked:
             self.val_radix = hex
@@ -150,11 +181,40 @@ class DataSegmentWindow(QWidget):
             self.val_radix = int
         self.load_memory()
 
+
+class GPRTable(DataTable):
+    def __init__(self, parent=None):
+        super().__init__(['Name', 'Address', 'Value'], parent)
+
+    def load_registers(self):
+        self.reset_table()
+        for reg_name, reg_addr in GPR.reg_names.items():
+            self.add_row(reg_name, reg_addr, 0)
+        self.add_row('PC', None, 0)
+
+
+class CP0Table(DataTable):
+    def __init__(self, parent=None):
+        super().__init__(['Name', 'Address', 'Value'], parent)
+
+    def load_registers(self):
+        self.reset_table()
+        for reg_name, reg_addr in CP0.reg_names.items():
+            self.add_row(reg_name, reg_addr, 0)
+
+
+class RegisterTable(QTabWidget):
     """
-    TODO:
-    1. Write logic for checkboxes
-    2. Add Ascii view mode
-    3. Add extra column to show word value?
-    4. Displays labels here or in mem_table or new tab
-    5. Set up event logic for listening to memory updates
+    Displays the current values of the MIPS registers
     """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent=parent)
+        self.gpr = GPRTable()
+        self.cp0 = CP0Table()
+        self.addTab(self.gpr, 'GPR')
+        self.addTab(self.cp0, 'CP0')
+
+    def load_registers(self):
+        self.gpr.load_registers()
+        self.cp0.load_registers()

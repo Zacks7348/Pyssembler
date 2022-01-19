@@ -290,13 +290,12 @@ class PyssemblerWindow(QMainWindow):
             __LOGGER__.debug('Switching to Simulation window...')
             self.main_tabs.setCurrentIndex(1)  # Switch to sim window
             self.__set_sim_actions(True)
-        
+
     def on_find_replace(self):
         if self.main_tabs.currentIndex == 1:
-            self.main_tabs.setCurrentIndex(0) # Switch to IDE window
+            self.main_tabs.setCurrentIndex(0)  # Switch to IDE window
         self.find_replace_window = FindReplaceDialog(self.ide.editor_manager)
         self.find_replace_window.exec()
-        
 
     def __set_editor_actions(self, b: bool):
         self.close_file_action.setEnabled(b)
@@ -311,7 +310,7 @@ class PyssemblerWindow(QMainWindow):
         self.assemble_action.setEnabled(b)
         self.undo_action.setEnabled(b)
         self.redo_action.setEnabled(b)
-    
+
     def __set_sim_actions(self, b: bool):
         self.run_sim_action.setEnabled(b)
         self.step_sim_action.setEnabled(b)

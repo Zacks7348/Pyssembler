@@ -12,4 +12,5 @@ from .types import DataType, MemorySize, MemorySegment
 from .exceptions import *
 from .utils import *
 from .registers import GPR, CP0, is_register
+from .memory import MEM
 

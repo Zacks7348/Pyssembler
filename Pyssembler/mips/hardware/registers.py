@@ -10,15 +10,16 @@ from ctypes import c_uint32, c_int32
 
 from .memory import MemorySize
 from .utils import Integer
-from Pyssembler.events import trigger
+from Pyssembler.observer import Observable
 
 
-class _Processor:
+class _Processor(Observable):
     """
     Base class for MIPS Processor Register Files 
     """
 
     def __init__(self, name) -> None:
+        super().__init__()
         self.processor_name = name
         self._regs = {}
         self.reg_names = {}
@@ -65,7 +66,6 @@ class _Processor:
         if signed:
             # Convert unsigned int to signed
             return c_int32(self._regs[reg]).value
-        # Trigger onRegisterRead event
         return self._regs[reg]
 
     def write(self, reg: Union[int, str], val: int) -> None:
@@ -86,8 +86,7 @@ class _Processor:
         if not reg in self._regs:
             raise ValueError('Invalid Register address {}'.format(reg))
         self._regs[reg] = c_uint32(val).value
-        trigger('onRegisterWrite', reg, self.processor_name, val)
-    
+
     def dump(self, radix=int, signed=True) -> dict:
         """
         Dump the current state of the Register File
@@ -112,29 +111,35 @@ class _Processor:
                 dumped[name] = self._formatting[radix].format(self._regs[addr])
         return dumped
 
+    def notify_observers(self, addr: int, val: int):
+        for observer in self.observers:
+            observer(addr, val)
+
+
 class _GPR(_Processor):
     """
     Represents MIPS General Purpose Registers 
     """
+
     def __init__(self) -> None:
         super().__init__('GPR')
         self.reg_names = {'$zero': 0, '$at': 1, '$v0': 2, '$v1': 3,
-                      '$a0': 4, '$a1': 5, '$a2': 6, '$a3': 7,
-                      '$t0': 8, '$t1': 9, '$t2': 10, '$t3': 11,
-                      '$t4': 12, '$t5': 13, '$t6': 14, '$t7': 15,
-                      '$s0': 16, '$s1': 17, '$s2': 18, '$s3': 19,
-                      '$s4': 20, '$s5': 21, '$s6': 22, '$s7': 23,
-                      '$t8': 24, '$t9': 25, '$k0': 26, '$k1': 27,
-                      '$gp': 28, '$sp': 29, '$fp': 30, '$ra': 31}
+                          '$a0': 4, '$a1': 5, '$a2': 6, '$a3': 7,
+                          '$t0': 8, '$t1': 9, '$t2': 10, '$t3': 11,
+                          '$t4': 12, '$t5': 13, '$t6': 14, '$t7': 15,
+                          '$s0': 16, '$s1': 17, '$s2': 18, '$s3': 19,
+                          '$s4': 20, '$s5': 21, '$s6': 22, '$s7': 23,
+                          '$t8': 24, '$t9': 25, '$k0': 26, '$k1': 27,
+                          '$gp': 28, '$sp': 29, '$fp': 30, '$ra': 31}
         self._regs = {addr: 0 for addr in self.reg_names.values()}
         self.pc = 0
-    
+
     def increment_pc(self):
         """
         Increment the Program Counter
         """
         self.pc += MemorySize.WORD_LENGTH_BYTES
-    
+
     def dump(self, radix=int) -> dict:
         """
         Dump the current state of the General Purpose Register File
@@ -160,6 +165,7 @@ class _GPR(_Processor):
         dumped['PC'] = self._formatting[radix].format(self.pc)
         return dumped
 
+
 class _CP0(_Processor):
     """
     Represents MIPS CP0 registers
@@ -173,7 +179,7 @@ class _CP0(_Processor):
         self.STATUS = 12
         self.CAUSE = 13
         self.EPC = 14
-    
+
     def read_status(self) -> Tuple[int, int, int, int]:
         """
         Shortcut for reading STATUS register bit values
@@ -190,7 +196,7 @@ class _CP0(_Processor):
         int_enable = Integer.get_bit(val, 0)
 
         return int_mask, user_mode, exc_lvl, int_enable
-    
+
     def write_status(self, int_mask=None, user_mode=None, exc_lvl=None, int_enable=None) -> None:
         """
         Shortcut for modifying specific bit values in the STATUS register
@@ -205,7 +211,7 @@ class _CP0(_Processor):
         if not int_enable is None and type(int_enable) == int:
             val = Integer.change_bit(val, 0, int_enable)
         self.write(self.STATUS, val)
-    
+
     def write_cause(self, b_delay=None, p_ints=None, exc_code=None):
         """
         Shortcut for modifying specific bit values in the CAUSE register
@@ -219,7 +225,6 @@ class _CP0(_Processor):
             val = Integer.change_bits(val, 2, 6, exc_code)
         self.write(self.CAUSE, val)
 
-    
     def read_cause(self) -> Tuple[int, int, int]:
         """
         Shortcut for reading CAUSE register bit values
@@ -235,13 +240,14 @@ class _CP0(_Processor):
         exc_code = Integer.get_bits(val, 2, 6)
 
         return b_delay, pending_int, exc_code
-    
+
     def dump(self, radix=int) -> dict:
         return super().dump(radix=radix, signed=False)
-    
+
 
 GPR = _GPR()
 CP0 = _CP0()
+
 
 def is_register(name: str) -> bool:
     """
@@ -260,6 +266,7 @@ def is_register(name: str) -> bool:
 
     return GPR.is_register(name) or CP0.is_register(name)
 
+
 def get_names() -> list:
     """
     Returns a list of all valid register names for app processors
@@ -267,6 +274,7 @@ def get_names() -> list:
 
     # Cast to set first to remove duplicates
     return list(set(list(GPR.reg_names.keys()) + list(CP0.reg_names.keys())))
+
 
 def get_name_from_address(addr: int) -> str:
     """

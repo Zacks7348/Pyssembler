@@ -1,43 +1,56 @@
 import logging
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QRunnable, pyqtSlot, pyqtSignal, QObject, QThreadPool
 from PyQt5.QtWidgets import (
-    QCheckBox,
-    QTabWidget, 
+    QTabWidget,
     QTableWidget,
-    QTableWidgetItem, 
-    QHBoxLayout, 
-    QFileDialog,
-    QVBoxLayout, 
-    QWidget, 
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
     QSplitter)
 from Pyssembler.mips.errors import TokenizationError
 
-from Pyssembler.mips.hardware import GPR, CP0, MemorySegment
+from Pyssembler.mips.hardware import GPR, CP0, memory
 from Pyssembler.mips import Assembler, Simulator, MIPSProgram
-from Pyssembler.mips import AssemblerError, AssemblerWarning
-from .consoles import Consoles
-from .segments import DataSegmentWindow, TextSegmentWindow
+from Pyssembler.mips import AssemblerError
+from Pyssembler.mips.simulator import SimulationExitException
+
+from .tables import DataSegmentTable, TextSegmentTable, RegisterTable
 
 __LOGGER__ = logging.getLogger('Pyssembler.GUI')
+
+
+class SimulationSignals(QObject):
+    """
+    Defines the signals available from the simulation thread
+    """
+
+    executed = pyqtSignal(int)  # Current PC
+    gpr_written = pyqtSignal(int, int)
+    cp0_written = pyqtSignal(int, int)
+    mem_written = pyqtSignal()
+    finished = pyqtSignal(str)
+
 
 class SimulatorWindow(QWidget):
     def __init__(self, consoles) -> None:
         super().__init__()
         self.consoles = consoles
         self.__init_ui()
-        self.simulator = Simulator()
         self.assembler = Assembler()
         self.program = None
+        self.threadpool = QThreadPool()
 
     def __init_ui(self):
         self.regs = RegisterTable(self)
-        self.text = TextSegmentWindow()
-        self.mem = DataSegmentWindow()
+        self.regs.load_registers()
+        self.text = TextSegmentTable()
+        self.mem = DataSegmentTable()
 
         self.main_tabs = QTabWidget(self)
         self.main_tabs.addTab(self.text, 'Text Segment')
         self.main_tabs.addTab(self.mem, 'Data Segment')
+
         splitter = QSplitter()
         splitter.setOrientation(Qt.Horizontal)
         splitter.addWidget(self.main_tabs)
@@ -47,24 +60,22 @@ class SimulatorWindow(QWidget):
         layout.addWidget(splitter)
         self.setLayout(layout)
 
-    
     def init_sim_env(self, main, files=None) -> bool:
         """
         Initialize the simulation environment for the specified program.
 
-        First assembles the program. If any errors occure then stop and
+        First assembles the program. If any errors occur then stop and
         log error in pyssembler console.
 
         Initialize sim object
 
-        Return False on error and return True if successfull
+        Return False on error and return True if successful
         """
 
         __LOGGER__.debug('Initializing simulation environment...')
         files = [] if not files else files
         __LOGGER__.debug('Creating MIPS32 program...')
         self.consoles.p_message('Assembling program...')
-        self.consoles
         self.program = MIPSProgram(files, main=main)
         try:
             __LOGGER__.debug('Assembling program...')
@@ -83,52 +94,55 @@ class SimulatorWindow(QWidget):
         self.text.load_program(self.program)
         self.mem.load_memory()
         return True
-        
 
-class RegisterTable(QTabWidget):
+    def start_simulation(self):
+        """
+        Starts the Simulation thread
+        """
+        worker = SimulationWorker()
+        worker.signals.executed.connect(self.text.highlight)
+        worker.signals.mem_written.connect(self.mem.load_memory)
+        self.threadpool.start(worker)
+
+
+class SimulationWorker(QRunnable):
     """
-    Displays the current values of the MIPS registers
+    This class performs the simulation in another thread
     """
-    def __init__(self, parent=None) -> None:
-        super().__init__(parent=parent)
-        self.__init_gpr_table()
-        self.__init_cp0_table()
 
-    def __init_gpr_table(self):
-        self.gpr_table = self.__create_table(34, 3)
-        self.__add_item(self.gpr_table, 0, 0, 'Name')
-        self.__add_item(self.gpr_table, 0, 1, 'Address')
-        self.__add_item(self.gpr_table, 0, 2, 'Value')
-        for i, (reg_name, reg_addr) in enumerate(GPR.reg_names.items(), start=1):
-            self.__add_item(self.gpr_table, i, 0, reg_name)
-            self.__add_item(self.gpr_table, i, 1, reg_addr)
-            self.__add_item(self.gpr_table, i, 2, 0)
-        self.__add_item(self.gpr_table, 33, 0, 'PC')
-        self.__add_item(self.gpr_table, 33, 2, 0)
-        self.addTab(self.gpr_table, 'GPR')
-    
-    def __init_cp0_table(self):
-        self.cp0_table = self.__create_table(5, 3)
-        self.__add_item(self.cp0_table, 0, 0, 'Name')
-        self.__add_item(self.cp0_table, 0, 1, 'Address')
-        self.__add_item(self.cp0_table, 0, 2, 'Value')
-        for i, (reg_name, reg_addr) in enumerate(CP0.reg_names.items(), start=1):
-            self.__add_item(self.cp0_table, i, 0, reg_name)
-            self.__add_item(self.cp0_table, i, 1, reg_addr)
-            self.__add_item(self.cp0_table, i, 2, 0)
-        self.addTab(self.cp0_table, 'CP0')
+    def __init__(self):
+        self.sim = Simulator()
+        self.signals = SimulationSignals()
 
-    def __create_table(self, row_cnt, col_cnt):
-        table = QTableWidget(self)
-        table.setRowCount(row_cnt)
-        table.setColumnCount(col_cnt)
-        table.horizontalHeader().setVisible(False)
-        table.verticalHeader().setVisible(False)
-        table.verticalHeader().setDefaultSectionSize(10)
-        return table
+    @pyqtSlot()
+    def run(self):
+        """
+        Runs the MIPS32 simulation
+        """
 
-    
-    def __add_item(self, table: QTableWidget, row: int, col: int, item):
-        item = QTableWidgetItem(str(item))
-        item.setFlags(item.flags() ^ Qt.ItemIsEditable)
-        table.setItem(row, col, item)
+        GPR.add_observer(self.__on_gpr_write)
+        CP0.add_observer(self.__on_cp0_write)
+        memory.add_observer(self.__on_mem_write)
+        self.sim.start(step=True)
+
+        while True:
+            try:
+                addr = self.sim.execute_instruction()
+                self.signals.executed.emit(GPR.pc)
+            except SimulationExitException as e:
+                self.signals.finished.emit(e.result)
+                break
+        GPR.remove_observer(self.__on_gpr_write)
+        CP0.remove_observer(self.__on_cp0_write)
+        memory.remove_observer(self.__on_mem_write)
+
+    def __on_gpr_write(self, addr: int, val: int):
+        self.signals.gpr_written.emit((addr, val))
+
+    def __on_cp0_write(self, addr: int, val: int):
+        self.signals.cp0_written.emit((addr, val))
+
+    def __on_mem_write(self, addr: int, val: int, size: int):
+        self.signals.mem_written.emit((addr, val, size))
+
+
