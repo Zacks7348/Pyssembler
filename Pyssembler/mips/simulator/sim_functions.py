@@ -12,7 +12,7 @@ from typing import Callable
 from ctypes import c_uint16, c_uint32, c_int32
 import json
 
-from ..hardware import memory, MemorySize, registers, alu, Integer
+from ..hardware import MEM, MemorySize, GPR, CP0, alu, Integer
 from ..hardware.exceptions import ArithmeticOverflowException, BreakException
 from ..hardware.exceptions import SyscallException, ReservedInstructionException, TrapException
 
@@ -41,12 +41,12 @@ def __branch(offset, a, b, condition=lambda x, y: True, save_ra=False):
     """
 
     if save_ra:
-        registers.gpr_write(GPR_RA, registers.pc+4)
+        GPR.write(GPR_RA, GPR.pc + 4)
     if condition(a, b):
-        res, overflow = alu.add32(registers.pc, offset << 2)
+        res, overflow = alu.add32(GPR.pc, offset << 2)
         if overflow:
             raise ArithmeticOverflowException()
-        registers.pc = res
+        GPR.pc = res
 
 
 def add_instruction(instr):
@@ -57,11 +57,11 @@ def add_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res, overflow = alu.add32(registers.gpr_read(
-        rs, signed=True), registers.gpr_read(rt, signed=True))
+    res, overflow = alu.add32(GPR.read(
+        rs, signed=True), GPR.read(rt, signed=True))
     if overflow:
         raise ArithmeticOverflowException()
-    registers.gpr_write(rd, res)
+    GPR.write(rd, res)
 
 
 def addiu_instruction(instr):
@@ -72,8 +72,8 @@ def addiu_instruction(instr):
     rt = instr.operands[0]
     rs = instr.operands[1]
     imm = instr.operands[2]
-    res, overflow = alu.add32(registers.gpr_read(rs, signed=True), imm)
-    registers.gpr_write(rt, res)
+    res, overflow = alu.add32(GPR.read(rs, signed=True), imm)
+    GPR.write(rt, res)
 
 
 def addiupc_instruction(instr):
@@ -83,8 +83,8 @@ def addiupc_instruction(instr):
 
     rs = instr.operands[0]
     imm = instr.operands[1]
-    res, overflow = alu.add32(registers.pc, imm << 2)
-    registers.gpr_write(rs, res)
+    res, overflow = alu.add32(GPR.pc, imm << 2)
+    GPR.write(rs, res)
 
 
 def addu_instruction(instr):
@@ -95,9 +95,9 @@ def addu_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res, overflow = alu.add32(registers.gpr_read(
-        rs, signed=True), registers.gpr_read(rt, signed=True))
-    registers.gpr_write(rd, res)
+    res, overflow = alu.add32(GPR.read(
+        rs, signed=True), GPR.read(rt, signed=True))
+    GPR.write(rd, res)
 
 
 def align_instruction(instr):
@@ -109,9 +109,9 @@ def align_instruction(instr):
     rs = instr.operands[1]
     rt = instr.operands[2]
     bp = instr.operands[3]
-    res = (registers.gpr_read(rt) << (8*bp)
-           ) | (registers.gpr_read(rs) >> (GPRLEN-8*bp))
-    registers.gpr_write(rd, res)
+    res = (GPR.read(rt) << (8 * bp)
+           ) | (GPR.read(rs) >> (GPRLEN - 8 * bp))
+    GPR.write(rd, res)
 
 
 def aluipc_instruction(instr):
@@ -121,9 +121,9 @@ def aluipc_instruction(instr):
 
     rs = instr.operands[0]
     imm = instr.operands[1]
-    res, overflow = alu.add32(registers.pc, imm << 16)
+    res, overflow = alu.add32(GPR.pc, imm << 16)
     res = alu.and32(~0x0FFFF, res)
-    registers.gpr_write(rs, res)
+    GPR.write(rs, res)
 
 
 def and_instruction(instr):
@@ -134,8 +134,8 @@ def and_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.and32(registers.gpr_read(rs), registers.gpr_read(rt))
-    registers.gpr_write(rd, res)
+    res = alu.and32(GPR.read(rs), GPR.read(rt))
+    GPR.write(rd, res)
 
 
 def andi_instruction(instr):
@@ -146,8 +146,8 @@ def andi_instruction(instr):
     rt = instr.operands[0]
     rs = instr.operands[1]
     imm = instr.operands[2]
-    res = alu.and32(registers.gpr_read(rs), imm)
-    registers.gpr_write(rt, res)
+    res = alu.and32(GPR.read(rs), imm)
+    GPR.write(rt, res)
 
 
 def aui_instruction(instr):
@@ -158,8 +158,8 @@ def aui_instruction(instr):
     rt = instr.operands[0]
     rs = instr.operands[1]
     imm = instr.operands[2]
-    res, overflow = alu.add32(registers.gpr_read(rs, signed=True), imm << 16)
-    registers.gpr_write(rt, res)
+    res, overflow = alu.add32(GPR.read(rs, signed=True), imm << 16)
+    GPR.write(rt, res)
 
 
 def auipc_instruction(instr):
@@ -169,8 +169,8 @@ def auipc_instruction(instr):
 
     rs = instr.operands[0]
     imm = instr.operands[1]
-    res, overflow = alu.add32(registers.pc, imm << 16)
-    registers.gpr_write(rs, res)
+    res, overflow = alu.add32(GPR.pc, imm << 16)
+    GPR.write(rs, res)
 
 
 def bal_instruction(instr):
@@ -179,9 +179,9 @@ def bal_instruction(instr):
     """
 
     offset = instr.operands[0]
-    # registers.gpr_write(GPR_RA, registers.pc+4)
-    # res, overflow = alu.add32(registers.pc, offset << 2)
-    # registers.pc = res
+    # GPR.write(GPR_RA, GPR.pc+4)
+    # res, overflow = alu.add32(GPR.pc, offset << 2)
+    # GPR.pc = res
     __branch(offset, 0, 0, save_ra=True)
 
 
@@ -191,8 +191,8 @@ def balc_instruction(instr):
     """
 
     offset = instr.operands[0]
-    # registers.gpr_write(GPR_RA, registers.pc+4)
-    # registers.pc = alu.add32(registers.pc, offset << 2)
+    # GPR.write(GPR_RA, GPR.pc+4)
+    # GPR.pc = alu.add32(GPR.pc, offset << 2)
     __branch(offset, 0, 0, save_ra=True)
 
 
@@ -202,7 +202,7 @@ def bc_instruction(instr):
     """
 
     offset = instr.operands[0]
-    # registers.pc = alu.add32(registers.pc, offset << 2)
+    # GPR.pc = alu.add32(GPR.pc, offset << 2)
     __branch(offset, 0, 0)
 
 
@@ -214,9 +214,9 @@ def beq_instruction(instr):
     rs = instr.operands[0]
     rt = instr.operands[1]
     offset = instr.operands[2]
-    # if registers.gpr_read(rs) == registers.gpr_read(rt):
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs), registers.gpr_read(
+    # if GPR.read(rs) == GPR.read(rt):
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs), GPR.read(
         rt), condition=lambda x, y: x == y)
 
 
@@ -227,10 +227,10 @@ def beqzalc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # registers.gpr_write(GPR_RA, registers.pc+4)
-    # if registers.gpr_read(rt) == 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt), 0,
+    # GPR.write(GPR_RA, GPR.pc+4)
+    # if GPR.read(rt) == 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt), 0,
              condition=lambda x, y: x == y, save_ra=True)
 
 
@@ -241,9 +241,9 @@ def beqzc_instruction(instr):
 
     rs = instr.operands[0]
     offset = instr.operands[1]
-    # if registers.gpr_read(rs) == 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs), 0, condition=lambda x, y: x == y)
+    # if GPR.read(rs) == 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs), 0, condition=lambda x, y: x == y)
 
 
 def bgec_instruction(instr):
@@ -254,9 +254,9 @@ def bgec_instruction(instr):
     rs = instr.operands[0]
     rt = instr.operands[1]
     offset = instr.operands[2]
-    # if (registers.gpr_read(rs, signed=True) >= registers.gpr_read(rt, signed=True)):
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs, signed=True), registers.gpr_read(
+    # if (GPR.read(rs, signed=True) >= GPR.read(rt, signed=True)):
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs, signed=True), GPR.read(
         rt, signed=True), condition=lambda x, y: x >= y)
 
 
@@ -268,9 +268,9 @@ def bgeuc_instruction(instr):
     rs = instr.operands[0]
     rt = instr.operands[1]
     offset = instr.operands[2]
-    # if registers.gpr_read(rs) >= registers.gpr_read(rt):
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs), registers.gpr_read(
+    # if GPR.read(rs) >= GPR.read(rt):
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs), GPR.read(
         rt), condition=lambda x, y: x >= y)
 
 
@@ -281,9 +281,9 @@ def bgez_instruction(instr):
 
     rs = instr.operands[0]
     offset = instr.operands[1]
-    # if registers.gpr_read(rs, signed=True) >= 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs, signed=True),
+    # if GPR.read(rs, signed=True) >= 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs, signed=True),
              0, condition=lambda x, y: x >= y)
 
 
@@ -294,10 +294,10 @@ def bgezalc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # registers.gpr_write(GPR_RA, registers.pc+4)
-    # if registers.gpr_read(rt, signed=True) >= 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt, signed=True),
+    # GPR.write(GPR_RA, GPR.pc+4)
+    # if GPR.read(rt, signed=True) >= 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt, signed=True),
              0, condition=lambda x, y: x >= y, save_ra=True)
 
 
@@ -308,9 +308,9 @@ def bgezc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # if registers.gpr_read(rt, signed=True) >= 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt, signed=True),
+    # if GPR.read(rt, signed=True) >= 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt, signed=True),
              0, condition=lambda x, y: x >= y)
 
 
@@ -321,9 +321,9 @@ def bgtz_instruction(instr):
 
     rs = instr.operands[0]
     offset = instr.operands[1]
-    # if registers.gpr_read(rs, signed=True) > 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs, signed=True),
+    # if GPR.read(rs, signed=True) > 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs, signed=True),
              0, condition=lambda x, y: x > y)
 
 
@@ -334,10 +334,10 @@ def bgtzalc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # registers.gpr_write(GPR_RA, registers.pc+4)
-    # if registers.gpr_read(rt, signed=True) > 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt, signed=True),
+    # GPR.write(GPR_RA, GPR.pc+4)
+    # if GPR.read(rt, signed=True) > 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt, signed=True),
              0, condition=lambda x, y: x > y, save_ra=True)
 
 
@@ -348,9 +348,9 @@ def bgtzc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # if registers.gpr_read(rt, signed=True) > 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt, signed=True),
+    # if GPR.read(rt, signed=True) > 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt, signed=True),
              0, condition=lambda x, y: x > y)
 
 
@@ -362,11 +362,11 @@ def bitswap_instruction(instr):
     rd = instr.operands[0]
     rt = instr.operands[1]
     tmp_bytes = []
-    rt_val = registers.gpr_read(rt)
+    rt_val = GPR.read(rt)
     for i in range(MemorySize.WORD_LENGTH_BYTES):
         tmp_byte = Integer.get_byte(rt_val, i)
         tmp_bytes.append('{:08b}'.format(tmp_byte)[::-1])
-    registers.gpr_write(rd, int(''.join(tmp_bytes[::-1]), 2))
+    GPR.write(rd, int(''.join(tmp_bytes[::-1]), 2))
 
 
 def blez_instruction(instr):
@@ -376,9 +376,9 @@ def blez_instruction(instr):
 
     rs = instr.operands[0]
     offset = instr.operands[1]
-    # if registers.gpr_read(rs, signed=True) <= 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs, signed=True),
+    # if GPR.read(rs, signed=True) <= 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs, signed=True),
              0, condition=lambda x, y: x <= y)
 
 
@@ -389,10 +389,10 @@ def blezalc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # registers.gpr_write(GPR_RA, registers.pc+4)
-    # if registers.gpr_read(rt, signed=True) <= 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt, signed=True),
+    # GPR.write(GPR_RA, GPR.pc+4)
+    # if GPR.read(rt, signed=True) <= 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt, signed=True),
              0, condition=lambda x, y: x <= y, save_ra=True)
 
 
@@ -403,9 +403,9 @@ def blezc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # if registers.gpr_read(rt, signed=True) <= 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt, signed=True),
+    # if GPR.read(rt, signed=True) <= 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt, signed=True),
              0, condition=lambda x, y: x <= y)
 
 
@@ -417,9 +417,9 @@ def bltc_instruction(instr):
     rs = instr.operands[0]
     rt = instr.operands[1]
     offset = instr.operands[2]
-    # if registers.gpr_read(rs, signed=True) <= registers.gpr_read(rt, signed=True):
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs, signed=True), registers.gpr_read(
+    # if GPR.read(rs, signed=True) <= GPR.read(rt, signed=True):
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs, signed=True), GPR.read(
         rt, signed=True), condition=lambda x, y: x <= y)
 
 
@@ -431,9 +431,9 @@ def bltuc_instruction(instr):
     rs = instr.operands[0]
     rt = instr.operands[1]
     offset = instr.operands[2]
-    # if registers.gpr_read(rs) <= registers.gpr_read(rt):
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs), registers.gpr_read(
+    # if GPR.read(rs) <= GPR.read(rt):
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs), GPR.read(
         rt), condition=lambda x, y: x <= y)
 
 
@@ -444,9 +444,9 @@ def bltz_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # if registers.gpr_read(rt, signed=True) < 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt, signed=True),
+    # if GPR.read(rt, signed=True) < 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt, signed=True),
              0, condition=lambda x, y: x < y)
 
 
@@ -457,11 +457,12 @@ def bltzalc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # registers.gpr_write(GPR_RA, registers.pc+4)
-    # if registers.gpr_read(rt, signed=True) < 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt, signed=True), 
-            0, condition=lambda x, y: x < y, save_ra=True)
+    # GPR.write(GPR_RA, GPR.pc+4)
+    # if GPR.read(rt, signed=True) < 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt, signed=True),
+             0, condition=lambda x, y: x < y, save_ra=True)
+
 
 def bltzc_instruction(instr):
     """
@@ -470,10 +471,11 @@ def bltzc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # if registers.gpr_read(rt, signed=True) < 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt, signed=True), 
-            0, condition=lambda x, y: x < y)
+    # if GPR.read(rt, signed=True) < 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt, signed=True),
+             0, condition=lambda x, y: x < y)
+
 
 def bne_instruction(instr):
     """
@@ -483,10 +485,11 @@ def bne_instruction(instr):
     rs = instr.operands[0]
     rt = instr.operands[1]
     offset = instr.operands[2]
-    # if registers.gpr_read(rs) != registers.gpr_read(rt):
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs, signed=True), registers.gpr_read(
+    # if GPR.read(rs) != GPR.read(rt):
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs, signed=True), GPR.read(
         rt, signed=True), condition=lambda x, y: x != y)
+
 
 def bnezalc_instruction(instr):
     """
@@ -495,11 +498,12 @@ def bnezalc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    # registers.gpr_write(GPR_RA, registers.pc+4)
-    # if registers.gpr_read(rt) != 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rt, signed=True), 
-            0, condition=lambda x, y: x != y, save_ra=True)
+    # GPR.write(GPR_RA, GPR.pc+4)
+    # if GPR.read(rt) != 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rt, signed=True),
+             0, condition=lambda x, y: x != y, save_ra=True)
+
 
 def bnezc_instruction(instr):
     """
@@ -508,10 +512,11 @@ def bnezc_instruction(instr):
 
     rs = instr.operands[0]
     offset = instr.operands[1]
-    # if registers.gpr_read(rs) != 0:
-    #     registers.pc = alu.add32(registers.pc, offset << 2)
-    __branch(offset, registers.gpr_read(rs, signed=True), 
-            0, condition=lambda x, y: x != y)
+    # if GPR.read(rs) != 0:
+    #     GPR.pc = alu.add32(GPR.pc, offset << 2)
+    __branch(offset, GPR.read(rs, signed=True),
+             0, condition=lambda x, y: x != y)
+
 
 def bnvc_instruction(instr):
     """
@@ -521,11 +526,12 @@ def bnvc_instruction(instr):
     rs = instr.operands[0]
     rt = instr.operands[1]
     offset = instr.operands[2]
-    res, overflow = alu.add32(registers.gpr_read(
-        rs, signed=True), registers.gpr_read(rt, signed=True))
+    res, overflow = alu.add32(GPR.read(
+        rs, signed=True), GPR.read(rt, signed=True))
     if not overflow:
-        res, _ = alu.add32(registers.pc, offset << 2)
-        registers.pc = res
+        res, _ = alu.add32(GPR.pc, offset << 2)
+        GPR.pc = res
+
 
 def bovc_instruction(instr):
     """
@@ -535,11 +541,11 @@ def bovc_instruction(instr):
     rs = instr.operands[0]
     rt = instr.operands[1]
     offset = instr.operands[2]
-    res, overflow = alu.add32(registers.gpr_read(
-        rs, signed=True), registers.gpr_read(rt, signed=True))
+    res, overflow = alu.add32(GPR.read(
+        rs, signed=True), GPR.read(rt, signed=True))
     if overflow:
-        res, _ = alu.add32(registers.pc, offset << 2)
-        registers.pc = res
+        res, _ = alu.add32(GPR.pc, offset << 2)
+        GPR.pc = res
 
 
 def break_instruction(instr):
@@ -558,12 +564,12 @@ def clo_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     i = GPR_RA
-    rs_val = registers.gpr_read(rs)
+    rs_val = GPR.read(rs)
     cnt = 0
     while (Integer.get_bit(rs_val, i) == 1) and i >= 0:
         cnt += 1
         i -= 1
-    registers.gpr_write(rd, cnt)
+    GPR.write(rd, cnt)
 
 
 def clz_instruction(instr):
@@ -574,12 +580,12 @@ def clz_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     i = GPR_RA
-    rs_val = registers.gpr_read(rs)
+    rs_val = GPR.read(rs)
     cnt = 0
     while (Integer.get_bit(rs_val, i) == 0) and i >= 0:
         cnt += 1
         i -= 1
-    registers.gpr_write(rd, cnt)
+    GPR.write(rd, cnt)
 
 
 def div_instruction(instr):
@@ -590,9 +596,9 @@ def div_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.div32(registers.gpr_read(rs, signed=True),
-                    registers.gpr_read(rt, signed=True))
-    registers.gpr_write(rd, res)
+    res = alu.div32(GPR.read(rs, signed=True),
+                    GPR.read(rt, signed=True))
+    GPR.write(rd, res)
 
 
 def divu_instruction(instr):
@@ -603,8 +609,8 @@ def divu_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.div32(registers.gpr_read(rs), registers.gpr_read(rt))
-    registers.gpr_write(rd, res)
+    res = alu.div32(GPR.read(rs), GPR.read(rt))
+    GPR.write(rd, res)
 
 
 def j_instruction(instr):
@@ -614,7 +620,7 @@ def j_instruction(instr):
 
     target = instr.operands[0]
     # After instruction is simulated, 4 is added to pc
-    registers.pc = (target << 2) - 4
+    GPR.pc = (target << 2) - 4
 
 
 def jal_instruction(instr):
@@ -623,9 +629,9 @@ def jal_instruction(instr):
     """
 
     target = instr.operands[0]
-    registers.gpr_write(GPR_RA, registers.pc+4)
+    GPR.write(GPR_RA, GPR.pc + 4)
     # After instruction is simulated, 4 is added to pc
-    registers.pc = (target << 2) - 4
+    GPR.pc = (target << 2) - 4
 
 
 def jalr_instruction(instr):
@@ -635,10 +641,10 @@ def jalr_instruction(instr):
 
     rd = instr.operands[0]
     rs = instr.operands[1]
-    registers.gpr_write(rd, registers.pc+4)
+    GPR.write(rd, GPR.pc + 4)
     # After instruction is simulated, 4 is added to pc
-    new_pc = registers.gpr_read(rs)
-    registers.pc = new_pc
+    new_pc = GPR.read(rs)
+    GPR.pc = new_pc
 
 
 def jialc_instruction(instr):
@@ -648,10 +654,10 @@ def jialc_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    registers.gpr_write(GPR_RA, registers.pc+4)
+    GPR.write(GPR_RA, GPR.pc + 4)
     # After instruction is simulated, 4 is added to pc
-    new_pc = alu.add32(registers.gpr_read(rt, signed=True), offset)
-    registers.pc = new_pc
+    new_pc = alu.add32(GPR.read(rt, signed=True), offset)
+    GPR.pc = new_pc
 
 
 def jic_instruction(instr):
@@ -662,8 +668,8 @@ def jic_instruction(instr):
     rt = instr.operands[0]
     offset = instr.operands[1]
     # After instruction is simulated, 4 is added to pc
-    new_pc, overflow = alu.add32(registers.gpr_read(rt, signed=True), offset)
-    registers.pc = new_pc
+    new_pc, overflow = alu.add32(GPR.read(rt, signed=True), offset)
+    GPR.pc = new_pc
 
 
 def lb_instruction(instr):
@@ -673,10 +679,10 @@ def lb_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    base = instr.operands[2] 
-    addr, overflow = alu.add32(registers.gpr_read(base), offset)
-    res = memory.read_byte(addr=addr, signed=True)
-    registers.gpr_write(rt, res)
+    base = instr.operands[2]
+    addr, overflow = alu.add32(GPR.read(base), offset)
+    res = MEM.read_byte(addr=addr, signed=True)
+    GPR.write(rt, res)
 
 
 def lbu_instruction(instr):
@@ -686,10 +692,10 @@ def lbu_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    base = instr.operands[2] 
-    addr, overflow = alu.add32(registers.gpr_read(base), offset)
-    res = memory.read_byte(addr=addr)
-    registers.gpr_write(rt, res)
+    base = instr.operands[2]
+    addr, overflow = alu.add32(GPR.read(base), offset)
+    res = MEM.read_byte(addr=addr)
+    GPR.write(rt, res)
 
 
 def lh_instruction(instr):
@@ -699,10 +705,10 @@ def lh_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    base = instr.operands[2] 
-    addr, overflow = alu.add32(registers.gpr_read(base), offset)
-    res = memory.read_hword(addr=addr, signed=True)
-    registers.gpr_write(rt, res)
+    base = instr.operands[2]
+    addr, overflow = alu.add32(GPR.read(base), offset)
+    res = MEM.read_hword(addr=addr, signed=True)
+    GPR.write(rt, res)
 
 
 def lhu_instruction(instr):
@@ -712,10 +718,10 @@ def lhu_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    base = instr.operands[2] 
-    addr, overflow = alu.add32(registers.gpr_read(base), offset)
-    res = memory.read_hword(addr=addr)
-    registers.gpr_write(rt, res)
+    base = instr.operands[2]
+    addr, overflow = alu.add32(GPR.read(base), offset)
+    res = MEM.read_hword(addr=addr)
+    GPR.write(rt, res)
 
 
 def lw_instruction(instr):
@@ -725,10 +731,10 @@ def lw_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    base = instr.operands[2] 
-    addr, overflow = alu.add32(registers.gpr_read(base), offset)
-    res = memory.read_word(addr=addr, signed=True)
-    registers.gpr_write(rt, res)
+    base = instr.operands[2]
+    addr, overflow = alu.add32(GPR.read(base), offset)
+    res = MEM.read_word(addr=addr, signed=True)
+    GPR.write(rt, res)
 
 
 def lwpc_instruction(instr):
@@ -738,9 +744,9 @@ def lwpc_instruction(instr):
 
     rs = instr.operands[0]
     offset = instr.operands[1]
-    addr, overflow = alu.add32(registers.pc, offset << 2)
-    res = memory.read_word(addr=addr, signed=True)
-    registers.gpr_write(rs, res)
+    addr, overflow = alu.add32(GPR.pc, offset << 2)
+    res = MEM.read_word(addr=addr, signed=True)
+    GPR.write(rs, res)
 
 
 def mfc0_instruction(instr):
@@ -759,9 +765,9 @@ def mod_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.mod32(registers.gpr_read(rs, signed=True),
-                    registers.gpr_read(rt, signed=True))
-    registers.gpr_write(rd, res)
+    res = alu.mod32(GPR.read(rs, signed=True),
+                    GPR.read(rt, signed=True))
+    GPR.write(rd, res)
 
 
 def modu_instruction(instr):
@@ -772,8 +778,8 @@ def modu_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.mod32(registers.gpr_read(rs), registers.gpr_read(rt))
-    registers.gpr_write(rd, res)
+    res = alu.mod32(GPR.read(rs), GPR.read(rt))
+    GPR.write(rd, res)
 
 
 def mtc0_instruction(instr):
@@ -792,9 +798,9 @@ def muh_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.muh32(registers.gpr_read(rs, signed=True),
-                    registers.gpr_read(rt, signed=True))
-    registers.gpr_write(rd, res)
+    res = alu.muh32(GPR.read(rs, signed=True),
+                    GPR.read(rt, signed=True))
+    GPR.write(rd, res)
 
 
 def muhu_instruction(instr):
@@ -805,8 +811,8 @@ def muhu_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.muh32(registers.gpr_read(rs), registers.gpr_read(rt))
-    registers.gpr_write(rd, res)
+    res = alu.muh32(GPR.read(rs), GPR.read(rt))
+    GPR.write(rd, res)
 
 
 def mul_instruction(instr):
@@ -817,9 +823,9 @@ def mul_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.mul32(registers.gpr_read(rs, signed=True),
-                    registers.gpr_read(rt, signed=True))
-    registers.gpr_write(rd, res)
+    res = alu.mul32(GPR.read(rs, signed=True),
+                    GPR.read(rt, signed=True))
+    GPR.write(rd, res)
 
 
 def mulu_instruction(instr):
@@ -830,8 +836,8 @@ def mulu_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.mul32(registers.gpr_read(rs), registers.gpr_read(rt))
-    registers.gpr_write(rd, res)
+    res = alu.mul32(GPR.read(rs), GPR.read(rt))
+    GPR.write(rd, res)
 
 
 def nor_instruction(instr):
@@ -842,8 +848,8 @@ def nor_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.nor32(registers.gpr_read(rs), registers.gpr_read(rt))
-    registers.gpr_write(rd, res)
+    res = alu.nor32(GPR.read(rs), GPR.read(rt))
+    GPR.write(rd, res)
 
 
 def or_instruction(instr):
@@ -854,8 +860,8 @@ def or_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.or32(registers.gpr_read(rs), registers.gpr_read(rt))
-    registers.gpr_write(rd, res)
+    res = alu.or32(GPR.read(rs), GPR.read(rt))
+    GPR.write(rd, res)
 
 
 def ori_instruction(instr):
@@ -866,8 +872,8 @@ def ori_instruction(instr):
     rt = instr.operands[0]
     rs = instr.operands[1]
     imm = instr.operands[2]
-    res = alu.or32(registers.gpr_read(rs), imm)
-    registers.gpr_write(rt, res)
+    res = alu.or32(GPR.read(rs), imm)
+    GPR.write(rt, res)
 
 
 def sb_instruction(instr):
@@ -877,9 +883,9 @@ def sb_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    base = instr.operands[2] 
-    addr, overflow = alu.add32(registers.gpr_read(base), offset)
-    memory.write(addr, registers.gpr_read(rt), MemorySize.BYTE)
+    base = instr.operands[2]
+    addr, overflow = alu.add32(GPR.read(base), offset)
+    MEM.write(addr, GPR.read(rt), MemorySize.BYTE)
 
 
 def sh_instruction(instr):
@@ -889,9 +895,9 @@ def sh_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    base = instr.operands[2] 
-    addr, overflow = alu.add32(registers.gpr_read(base), offset)
-    memory.write(addr, registers.gpr_read(rt), MemorySize.HWORD)
+    base = instr.operands[2]
+    addr, overflow = alu.add32(GPR.read(base), offset)
+    MEM.write(addr, GPR.read(rt), MemorySize.HWORD)
 
 
 def sll_instruction(instr):
@@ -902,8 +908,8 @@ def sll_instruction(instr):
     rd = instr.operands[0]
     rt = instr.operands[1]
     sa = instr.operands[2]
-    res = alu.shift_left32(registers.gpr_read(rt), sa)
-    registers.gpr_write(rd, res)
+    res = alu.shift_left32(GPR.read(rt), sa)
+    GPR.write(rd, res)
 
 
 def sllv_instruction(instr):
@@ -914,8 +920,8 @@ def sllv_instruction(instr):
     rd = instr.operands[0]
     rt = instr.operands[1]
     rs = instr.operands[2]
-    res = alu.shift_left32(registers.gpr_read(rt), registers.gpr_read(rs))
-    registers.gpr_write(rd, res)
+    res = alu.shift_left32(GPR.read(rt), GPR.read(rs))
+    GPR.write(rd, res)
 
 
 def slt_instruction(instr):
@@ -926,9 +932,9 @@ def slt_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = registers.gpr_read(
-        rs, signed=True) < registers.gpr_read(rt, signed=True)
-    registers.gpr_write(rd, int(res))
+    res = GPR.read(
+        rs, signed=True) < GPR.read(rt, signed=True)
+    GPR.write(rd, int(res))
 
 
 def slti_instruction(instr):
@@ -939,8 +945,8 @@ def slti_instruction(instr):
     rt = instr.operands[0]
     rs = instr.operands[1]
     imm = instr.operands[2]
-    res = registers.gpr_read(rs, signed=True) < imm
-    registers.gpr_write(rt, int(res))
+    res = GPR.read(rs, signed=True) < imm
+    GPR.write(rt, int(res))
 
 
 def sltiu_instruction(instr):
@@ -951,8 +957,8 @@ def sltiu_instruction(instr):
     rt = instr.operands[0]
     rs = instr.operands[1]
     imm = instr.operands[2]
-    res = registers.gpr_read(rs) < c_uint16(imm)
-    registers.gpr_write(rt, int(res))
+    res = GPR.read(rs) < c_uint16(imm)
+    GPR.write(rt, int(res))
 
 
 def sltu_instruction(instr):
@@ -963,8 +969,8 @@ def sltu_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = registers.gpr_read(rs) < registers.gpr_read(rt)
-    registers.gpr_write(rd, int(res))
+    res = GPR.read(rs) < GPR.read(rt)
+    GPR.write(rd, int(res))
 
 
 def sra_instruction(instr):
@@ -975,8 +981,8 @@ def sra_instruction(instr):
     rd = instr.operands[0]
     rt = instr.operands[1]
     sa = instr.operands[2]
-    res = alu.shift_right32(registers.gpr_read(rt), sa, sign=True)
-    registers.gpr_write(rd, res)
+    res = alu.shift_right32(GPR.read(rt), sa, sign=True)
+    GPR.write(rd, res)
 
 
 def srav_instruction(instr):
@@ -987,9 +993,9 @@ def srav_instruction(instr):
     rd = instr.operands[0]
     rt = instr.operands[1]
     rs = instr.operands[2]
-    res = alu.shift_right32(registers.gpr_read(
-        rt), registers.gpr_read(rs), sign=True)
-    registers.gpr_write(rd, res)
+    res = alu.shift_right32(GPR.read(
+        rt), GPR.read(rs), sign=True)
+    GPR.write(rd, res)
 
 
 def srl_instruction(instr):
@@ -1000,8 +1006,8 @@ def srl_instruction(instr):
     rd = instr.operands[0]
     rt = instr.operands[1]
     sa = instr.operands[2]
-    res = alu.shift_right32(registers.gpr_read(rt), sa)
-    registers.gpr_write(rd, res)
+    res = alu.shift_right32(GPR.read(rt), sa)
+    GPR.write(rd, res)
 
 
 def srlv_instruction(instr):
@@ -1012,8 +1018,8 @@ def srlv_instruction(instr):
     rd = instr.operands[0]
     rt = instr.operands[1]
     rs = instr.operands[2]
-    res = alu.shift_right32(registers.gpr_read(rt), registers.gpr_read(rs))
-    registers.gpr_write(rd, res)
+    res = alu.shift_right32(GPR.read(rt), GPR.read(rs))
+    GPR.write(rd, res)
 
 
 def sub_instruction(instr):
@@ -1024,11 +1030,11 @@ def sub_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res, overflow = alu.sub32(registers.gpr_read(rs, signed=True),
-                    registers.gpr_read(rt, signed=True))
+    res, overflow = alu.sub32(GPR.read(rs, signed=True),
+                              GPR.read(rt, signed=True))
     if overflow:
         raise ArithmeticOverflowException
-    registers.gpr_write(rd, res)
+    GPR.write(rd, res)
 
 
 def subu_instruction(instr):
@@ -1039,8 +1045,8 @@ def subu_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res, _ = alu.sub32(registers.gpr_read(rs), registers.gpr_read(rt))
-    registers.gpr_write(rd, res)
+    res, _ = alu.sub32(GPR.read(rs), GPR.read(rt))
+    GPR.write(rd, res)
 
 
 def sw_instruction(instr):
@@ -1050,16 +1056,16 @@ def sw_instruction(instr):
 
     rt = instr.operands[0]
     offset = instr.operands[1]
-    base = instr.operands[2] 
-    addr, overflow = alu.add32(registers.gpr_read(base), offset)
-    memory.write(addr, registers.gpr_read(rt), MemorySize.WORD)
+    base = instr.operands[2]
+    addr, overflow = alu.add32(GPR.read(base), offset)
+    MEM.write(addr, GPR.read(rt), MemorySize.WORD)
 
 
 def syscall_instruction(instr):
     """
     MIPS32 SYSCALL SIMULATION FUNCTION
     """
-    raise SyscallException(registers.gpr_read('$v0'))
+    raise SyscallException(GPR.read('$v0'))
 
 
 def teq_instruction(instr):
@@ -1069,7 +1075,7 @@ def teq_instruction(instr):
 
     rs = instr.operands[0]
     rt = instr.operands[1]
-    if registers.gpr_read(rs) == registers.gpr_read(rt):
+    if GPR.read(rs) == GPR.read(rt):
         raise TrapException
 
 
@@ -1080,7 +1086,7 @@ def tge_instruction(instr):
 
     rs = instr.operands[0]
     rt = instr.operands[1]
-    if registers.gpr_read(rs, signed=True) >= registers.gpr_read(rt, signed=True):
+    if GPR.read(rs, signed=True) >= GPR.read(rt, signed=True):
         raise TrapException
 
 
@@ -1091,7 +1097,7 @@ def tgeu_instruction(instr):
 
     rs = instr.operands[0]
     rt = instr.operands[1]
-    if registers.gpr_read(rs) >= registers.gpr_read(rt):
+    if GPR.read(rs) >= GPR.read(rt):
         raise TrapException
 
 
@@ -1102,7 +1108,7 @@ def tlt_instruction(instr):
 
     rs = instr.operands[0]
     rt = instr.operands[1]
-    if registers.gpr_read(rs, signed=True) < registers.gpr_read(rt, signed=True):
+    if GPR.read(rs, signed=True) < GPR.read(rt, signed=True):
         raise TrapException
 
 
@@ -1113,7 +1119,7 @@ def tltu_instruction(instr):
 
     rs = instr.operands[0]
     rt = instr.operands[1]
-    if registers.gpr_read(rs) < registers.gpr_read(rt):
+    if GPR.read(rs) < GPR.read(rt):
         raise TrapException
 
 
@@ -1124,7 +1130,7 @@ def tne_instruction(instr):
 
     rs = instr.operands[0]
     rt = instr.operands[1]
-    if registers.gpr_read(rs) != registers.gpr_read(rt):
+    if GPR.read(rs) != GPR.read(rt):
         raise TrapException
 
 
@@ -1136,8 +1142,8 @@ def xor_instruction(instr):
     rd = instr.operands[0]
     rs = instr.operands[1]
     rt = instr.operands[2]
-    res = alu.xor32(registers.gpr_read(rs), registers.gpr_read(rt))
-    registers.gpr_write(rd, res)
+    res = alu.xor32(GPR.read(rs), GPR.read(rt))
+    GPR.write(rd, res)
 
 
 def xori_instruction(instr):
@@ -1148,5 +1154,5 @@ def xori_instruction(instr):
     rt = instr.operands[0]
     rs = instr.operands[1]
     imm = instr.operands[2]
-    res = alu.xor32(registers.gpr_read(rs), imm)
-    registers.gpr_write(rt, res)
+    res = alu.xor32(GPR.read(rs), imm)
+    GPR.write(rt, res)

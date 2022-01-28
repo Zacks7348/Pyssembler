@@ -11,12 +11,12 @@ from PyQt5.QtWidgets import (
 
 # Imports custom resources for PyQt5
 import resources
-import constants
+import globals
 
 from .ide import IDE
 from .consoles import Consoles
 from .settings import SettingsWindow
-from .simulator import SimulatorWindow
+from .simulator import SimulatorWindow, SimulationWorker
 from .help import show_about
 from .find_replace import FindReplaceDialog
 
@@ -40,6 +40,8 @@ class PyssemblerWindow(QMainWindow):
         self.consoles = Consoles()
         self.ide = IDE(self.consoles)
         self.sim = SimulatorWindow(self.consoles)
+        self.sim.simulation_finished.connect(self.__on_sim_finish)
+
         self.main_tabs = QTabWidget(self)
         self.main_tabs.addTab(self.ide, 'Editor')
         self.main_tabs.addTab(self.sim, 'Simulator')
@@ -118,25 +120,29 @@ class PyssemblerWindow(QMainWindow):
             QIcon(':/icons/Assemble.png'), 'Assemble', self)
         self.assemble_action.triggered.connect(self.on_single_file_assemble)
 
-        self.run_sim_action = QAction(
+        self.play_sim_action = QAction(
             QIcon(':/icons/Play.png'), 'Play Simulation', self
         )
+        self.play_sim_action.triggered.connect(self.__play_sim)
 
-        self.step_sim_action = QAction(
+        self.step_sim_forward_action = QAction(
             QIcon(':/icons/Next.png'), 'Step Forward', self
         )
+        self.step_sim_forward_action.triggered.connect(self.sim.step_simulation_forward)
 
-        self.undo_sim_action = QAction(
+        self.step_sim_backwards_action = QAction(
             QIcon(':/icons/Previous.png'), 'Step Back', self
         )
 
         self.pause_sim_action = QAction(
             QIcon(':/icons/Pause.png'), 'Pause Simulation', self
         )
+        self.pause_sim_action.triggered.connect(self.__pause_sim)
 
         self.stop_sim_action = QAction(
             QIcon(':/icons/Stop.png'), 'Stop Simulation', self
         )
+        self.stop_sim_action.triggered.connect(self.__stop_sim)
 
         self.reset_sim_action = QAction(
             QIcon(':/icons/Reset.png'), 'Reset Simulation', self
@@ -220,9 +226,9 @@ class PyssemblerWindow(QMainWindow):
         tool_bar.addAction(self.find_action)
         tool_bar.addSeparator()
         tool_bar.addAction(self.assemble_action)
-        tool_bar.addAction(self.run_sim_action)
-        tool_bar.addAction(self.step_sim_action)
-        tool_bar.addAction(self.undo_sim_action)
+        tool_bar.addAction(self.play_sim_action)
+        tool_bar.addAction(self.step_sim_forward_action)
+        tool_bar.addAction(self.step_sim_backwards_action)
         tool_bar.addAction(self.pause_sim_action)
         tool_bar.addAction(self.stop_sim_action)
         tool_bar.addAction(self.reset_sim_action)
@@ -253,6 +259,9 @@ class PyssemblerWindow(QMainWindow):
             event.ignore()
 
         # Exit
+        # If SIM thread is running, stop it
+        if self.sim.is_thread_running:
+            self.sim.stop_simulation()
         __LOGGER__.info('Goodbye world')
         event.accept
 
@@ -289,7 +298,51 @@ class PyssemblerWindow(QMainWindow):
         if res:
             __LOGGER__.debug('Switching to Simulation window...')
             self.main_tabs.setCurrentIndex(1)  # Switch to sim window
-            self.__set_sim_actions(True)
+            self.play_sim_action.setEnabled(True)
+            self.step_sim_forward_action.setEnabled(True)
+            self.reset_sim_action.setEnabled(True)
+
+    def __play_sim(self):
+        self.sim.play_simulation()
+        self.assemble_action.setEnabled(False)
+        self.play_sim_action.setEnabled(False)
+        self.step_sim_forward_action.setEnabled(False)
+        self.step_sim_backwards_action.setEnabled(False)
+        self.reset_sim_action.setEnabled(False)
+        self.pause_sim_action.setEnabled(True)
+        self.stop_sim_action.setEnabled(True)
+
+    def __stop_sim(self):
+        self.sim.stop_simulation()
+        self.assemble_action.setEnabled(True)
+        self.play_sim_action.setEnabled(False)
+        self.step_sim_forward_action.setEnabled(False)
+        self.step_sim_backwards_action.setEnabled(False)
+        self.reset_sim_action.setEnabled(True)
+        self.pause_sim_action.setEnabled(False)
+        self.stop_sim_action.setEnabled(False)
+
+    def __pause_sim(self):
+        self.sim.pause_simulation()
+        self.assemble_action.setEnabled(False)
+        self.play_sim_action.setEnabled(True)
+        self.step_sim_forward_action.setEnabled(True)
+        self.step_sim_backwards_action.setEnabled(True)
+        self.reset_sim_action.setEnabled(True)
+        self.pause_sim_action.setEnabled(False)
+        self.stop_sim_action.setEnabled(True)
+
+    def __reset_sim(self):
+        pass
+
+    def __on_sim_finish(self):
+        self.assemble_action.setEnabled(True)
+        self.play_sim_action.setEnabled(False)
+        self.step_sim_forward_action.setEnabled(False)
+        self.step_sim_backwards_action.setEnabled(False)
+        self.reset_sim_action.setEnabled(False)
+        self.pause_sim_action.setEnabled(False)
+        self.stop_sim_action.setEnabled(False)
 
     def on_find_replace(self):
         if self.main_tabs.currentIndex == 1:
@@ -312,9 +365,9 @@ class PyssemblerWindow(QMainWindow):
         self.redo_action.setEnabled(b)
 
     def __set_sim_actions(self, b: bool):
-        self.run_sim_action.setEnabled(b)
-        self.step_sim_action.setEnabled(b)
-        self.undo_sim_action.setEnabled(b)
+        self.play_sim_action.setEnabled(b)
+        self.step_sim_forward_action.setEnabled(b)
+        self.step_sim_backwards_action.setEnabled(b)
         self.pause_sim_action.setEnabled(b)
         self.stop_sim_action.setEnabled(b)
         self.reset_sim_action.setEnabled(b)

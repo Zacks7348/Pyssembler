@@ -1,17 +1,16 @@
 from enum import Enum
-from typing import Text
 from string import ascii_letters, digits
 import logging
 
 from .mips_program import MIPSProgram
 from .errors import *
 from .instructions import instruction_set as instr_set
-from .hardware.memory import MemorySize, MemoryConfig
-from .hardware import memory, registers
+from .hardware import MEM, MemorySize, MemorySegment
 from .directives import DirectiveInfo, Directives
 from .tokenizer import Token, TokenType, tokenize_line, tokenize_program
 
 __LOGGER__ = logging.getLogger('Pyssembler.Assembler')
+
 
 class Segment(Enum):
     DATA = 0
@@ -52,7 +51,7 @@ class Assembler:
             Directives.BYTE: (MemorySize.BYTE, MemorySize.BYTE_LENGTH_BYTES)
         }
 
-        self.valid_symbol_chars = ascii_letters+digits+'-_'
+        self.valid_symbol_chars = ascii_letters + digits + '-_'
 
         self.warnings = []
 
@@ -89,11 +88,11 @@ class Assembler:
             segment.clear()
 
         # Initialize memory pointers
-        self.text_write = MemoryConfig.text_base_addr + text_offset
-        self.ktext_write = MemoryConfig.ktext_base_addr + ktext_offset
-        self.data_write = MemoryConfig.data_base_addr + data_offset
-        self.kdata_write = MemoryConfig.kdata_base_addr + kdata_offset
-        self.extern_write = MemoryConfig.extern_base_addr + extern_offset
+        self.text_write = MEM.config.text_base_addr + text_offset
+        self.ktext_write = MEM.config.ktext_base_addr + ktext_offset
+        self.data_write = MEM.config.data_base_addr + data_offset
+        self.kdata_write = MEM.config.kdata_base_addr + kdata_offset
+        self.extern_write = MEM.config.extern_base_addr + extern_offset
 
         self.program = program
         self.current_segment = Segment.TEXT  # Assume we are in text segment
@@ -224,7 +223,6 @@ class Assembler:
                             message='Referenced label {} not defined'.format(token.value)))
         __LOGGER__.debug('Finished generating symbol tables!')
 
-
     def assemble(self, program: MIPSProgram, text_offset: int = 0,
                  ktext_offset: int = 0, data_offset: int = 0,
                  kdata_offset: int = 0, extern_offset: int = 0) -> int:
@@ -260,7 +258,7 @@ class Assembler:
                                     kdata_offset, extern_offset)
         __LOGGER__.debug('Preparations complete!')
         __LOGGER__.debug('Assembling program...')
-
+        MEM.reset(MemorySegment.TEXT, MemorySegment.DATA)  # Clear memory
         for segment_type in (Segment.DATA, Segment.TEXT):
             # Tuple ensures we write program data to memory first before
             # assembling the text segment
@@ -280,7 +278,7 @@ class Assembler:
         Need to replace labels with immediate value and replace integers read as strings
         as actual ints
         """
-        __LOGGER__.debug('Encoding instruction at {}({})...'.format(line.filename, line.linenum))
+        # __LOGGER__.debug('Encoding instruction at {}({})...'.format(line.filename, line.linenum))
         encoding = instr_set.encode_instruction(line)
         if encoding is None:
             # Something went wrong, could not assemble instruction
@@ -290,10 +288,10 @@ class Assembler:
                 charnum=line.tokens[0].charnum,
                 message='Could not assemble instruction')
         line.binary_instr = encoding
-        #memory.write(line.memory_addr, encoding, size=MemorySize.WORD)
-        __LOGGER__.debug('Writing instruction to memory...')
-        memory.write_instruction(line.memory_addr, encoding, line)
-        __LOGGER__.debug('Done')
+        # memory.write(line.memory_addr, encoding, size=MemorySize.WORD)
+        # __LOGGER__.debug('Writing instruction to memory...')
+        MEM.write_instruction(line.memory_addr, encoding, line)
+        # __LOGGER__.debug('Done')
 
     def __handle_directive(self, line):
         """Helper function for dealing with directives that write values into memory
@@ -320,9 +318,9 @@ class Assembler:
                     linenum=line.line_num,
                     charnum=line.tokens[1].charnum,
                     message='.align directive requires an integer between 0 and 2')
-            alignment = self.data_write % 2**line.tokens[1].value
+            alignment = self.data_write % 2 ** line.tokens[1].value
             if alignment != 0:
-                self.data_write += 2**line.tokens[1].value - alignment
+                self.data_write += 2 ** line.tokens[1].value - alignment
         elif line.tokens[0].value in (Directives.ASCII, Directives.ASCIIZ):
             # Should only appear in data/kdata segment
             self.__validate_directive_segment(Segment.DATA, Segment.KDATA)
@@ -338,7 +336,7 @@ class Assembler:
             if line.tokens[0].value == Directives.ASCIIZ:
                 ascii_string += '\0'
             for char in ascii_string:
-                memory.write(self.data_write, ord(char), size=MemorySize.BYTE)
+                MEM.write(self.data_write, ord(char), size=MemorySize.BYTE)
                 self.data_write += MemorySize.BYTE_LENGTH_BYTES
         elif line.tokens[0].value == Directives.EXTERN:
             self.__validate_num_tokens(line.tokens, token_cnt=3)
@@ -348,7 +346,7 @@ class Assembler:
             self.program.global_symbols.add(label_token.value, self.extern_write)
             self.__validate_token_type(line.tokens[2], TokenType.IMMEDIATE)
             for _ in range(line.tokens[2].value):
-                memory.write(self.extern_write, 0, size=MemorySize.BYTE)
+                MEM.write(self.extern_write, 0, size=MemorySize.BYTE)
                 self.extern_write += MemorySize.BYTE_LENGTH_BYTES
         elif line.tokens[0].value == Directives.SPACE:
             # Should only appear in data/kdata segment
@@ -359,10 +357,10 @@ class Assembler:
                 self.program.get_local_symbols(line).add(
                     line.label.value, self.data_write)
             for _ in range(line.tokens[1].value):
-                memory.write(self.data_write, 0, size=MemorySize.BYTE)
+                MEM.write(self.data_write, 0, size=MemorySize.BYTE)
                 self.data_write += MemorySize.BYTE_LENGTH_BYTES
         elif line.tokens[0].value in (Directives.WORD, Directives.HALF,
-                                           Directives.BYTE):
+                                      Directives.BYTE):
             # Should only appear in data/kdata segment
             self.__validate_directive_segment(Segment.DATA, Segment.KDATA)
             self.__validate_num_tokens(line.tokens, min_tokens=2)
@@ -372,12 +370,11 @@ class Assembler:
                     line.label.value, self.data_write)
             for token in line.tokens[1:]:
                 self.__validate_token_type(token, TokenType.IMMEDIATE)
-                memory.write(self.data_write, token.value,
-                    size=self.dir_sizes[line.tokens[0].value][0])
+                MEM.write(self.data_write, token.value,
+                             size=self.dir_sizes[line.tokens[0].value][0])
                 self.data_write += self.dir_sizes[line.tokens[0].value][1]
 
-
-    def __check_for_duplicate_symbol(self, token: Token, check_global : bool=False):
+    def __check_for_duplicate_symbol(self, token: Token, check_global: bool = False):
         """Util function for checking if a symbol is already defined
 
         Parameters
@@ -426,6 +423,8 @@ class Assembler:
             If the type of token does not match type_
         """
         if not token.type == type_:
+            __LOGGER__.debug('Validate token type failed')
+            __LOGGER__.debug(f'Expected {type_}, got {token.type}')
             raise AssemblerError(
                 filename=self.current_line.filename,
                 linenum=self.current_line.linenum,
@@ -447,6 +446,8 @@ class Assembler:
         """
 
         if not self.current_segment in allowed_segments:
+            __LOGGER__.debug('Validate directive segment failed')
+            __LOGGER__.debug(f'Found directive in {self.current_segment}')
             raise AssemblerError(
                 filename=self.current_line.filename,
                 linenum=self.current_line.linenum,
@@ -460,6 +461,9 @@ class Assembler:
     def __validate_num_tokens(self, tokens, token_cnt=None, min_tokens=None):
         if not token_cnt is None:
             if len(tokens) != token_cnt:
+                print(tokens)
+                __LOGGER__.debug('Validate number of tokens failed')
+                __LOGGER__.debug(f'Expected {token_cnt} token(s), got {len(tokens)}')
                 raise AssemblerError(
                     filename=self.current_line.filename,
                     linenum=self.current_line.linenum,
@@ -470,6 +474,8 @@ class Assembler:
                 )
         if not min_tokens is None:
             if len(tokens) < min_tokens:
+                __LOGGER__.debug('Validate number of tokens failed')
+                __LOGGER__.debug(f'Expected at least {token_cnt} token(s), got {len(tokens)}')
                 raise AssemblerError(
                     filename=self.current_line.filename,
                     linenum=self.current_line.linenum,

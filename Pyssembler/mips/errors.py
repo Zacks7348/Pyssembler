@@ -8,12 +8,14 @@ class AssemblerError(PyssemblerException):
 
     This inherits from :class:`PyssemblerException`
     """
+
     def __init__(self, filename='', linenum='', charnum='',
-            message='Could not assemble instruction', ):
+                 message='Could not assemble instruction', ):
         error_message = 'Error found in file: {filename}({linenum},{charnum})\n\t {message}'
-        
-        super().__init__(error_message.format(filename=filename, 
-                linenum=linenum, charnum=charnum, message=message))
+
+        super().__init__(error_message.format(filename=filename,
+                                              linenum=linenum, charnum=charnum, message=message))
+
 
 class AssemblerWarning(PyssemblerException):
     """
@@ -23,12 +25,14 @@ class AssemblerWarning(PyssemblerException):
 
     This inherits from :class:`PyssemblerException`
     """
+
     def __init__(self, filename='', linenum='', charnum='',
-            message='Could not assemble instruction', ):
+                 message='Could not assemble instruction', ):
         error_message = 'Warning: {filename}({linenum},{charnum})\n {message}'
-        
-        super().__init__(error_message.format(filename=filename, 
-                linenum=linenum, charnum=charnum, message=message))
+
+        super().__init__(error_message.format(filename=filename,
+                                              linenum=linenum, charnum=charnum, message=message))
+
 
 class TokenizationError(PyssemblerException):
     """

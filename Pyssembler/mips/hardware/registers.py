@@ -86,6 +86,15 @@ class _Processor(Observable):
         if not reg in self._regs:
             raise ValueError('Invalid Register address {}'.format(reg))
         self._regs[reg] = c_uint32(val).value
+        self.notify_observers(reg, val)
+
+    def reset(self) -> bool:
+        """
+        Zeroes out all registers
+        """
+
+        for key in self._regs:
+            self._regs[key] = 0
 
     def dump(self, radix=int, signed=True) -> dict:
         """
@@ -139,6 +148,7 @@ class _GPR(_Processor):
         Increment the Program Counter
         """
         self.pc += MemorySize.WORD_LENGTH_BYTES
+        self.notify_observers(32, self.pc)
 
     def dump(self, radix=int) -> dict:
         """

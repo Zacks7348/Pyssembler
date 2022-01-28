@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget)
 
-from Pyssembler.mips.hardware import memory, MemorySegment, GPR, CP0
+from Pyssembler.mips.hardware import MEM, MemorySegment, GPR, CP0
 
 
 class DataTable(QTableWidget):
@@ -23,6 +23,9 @@ class DataTable(QTableWidget):
         v.setVisible(False)
         v.setDefaultSectionSize(14)
         self.reset_table()
+        self.mapping = {}
+        self.highlight_brush = QBrush(QColor('yellow'))
+        self.__highlighted = set()  # Saves row numbers that are highlighted
 
     def reset_table(self):
         self.clearContents()
@@ -33,50 +36,81 @@ class DataTable(QTableWidget):
             item.setFlags(item.flags() ^ Qt.ItemIsEditable)
             self.setItem(0, col, item)
 
-    def add_row(self, *args):
+    def add_row(self, *args, map_=None):
         self.setRowCount(self.rowCount() + 1)
         for col, item in enumerate(args):
-            item = QTableWidgetItem(str(item))
-            item.setFlags(item.flags() ^ Qt.ItemIsEditable)
-            self.setItem(self.rowCount() - 1, col, item)
+            self.__add_item(self.rowCount() - 1, col, item)
+        if map_ is not None:
+            self.mapping[map_] = self.rowCount() - 1
         return self.rowCount() - 1
+
+    def update_row(self, row: int, *args, start=0):
+        for col, item in enumerate(args, start=start):
+            self.__add_item(row, col, item)
+
+    def insert_row(self, row: int, *args):
+        self.insertRow(row)
+        for col, item in enumerate(args):
+            self.__add_item(row, col, item)
+
+    def highlight_row(self, row, clear=True):
+        """
+        Highlights a row. Clears all previous highlighting
+        """
+        if row == 0:
+            # Don't allow highlighting header row
+            return
+        if row in self.__highlighted:
+            # Row is already highlighted
+            return
+        if clear:
+            for c_row in list(self.__highlighted):
+                # Highlight with brush from item 0,0
+                # Since we don't allow highlighting header row, this
+                # will always be default
+                self.__highlight_row(c_row, self.item(0, 0).background())
+            self.__highlighted.clear()
+        self.__highlight_row(row, self.highlight_brush)
+        self.__highlighted.add(row)
+
+    def __highlight_row(self, row: int, brush: QBrush):
+        for col in range(self.columnCount()):
+            self.item(row, col).setBackground(brush)
+
+    def __add_item(self, row: int, col: int, val):
+        item = QTableWidgetItem(str(val))
+        item.setFlags(item.flags() ^ Qt.ItemIsEditable)
+        self.setItem(row, col, item)
+
+    def get_row_from_map(self, val):
+        return self.mapping.get(val, None)
+
+    @property
+    def highlighted_rows(self):
+        return self.__highlighted.copy()
 
 
 class TextSegmentTable(DataTable):
     def __init__(self, parent=None):
         super().__init__(['Address', 'Encoding', 'Source', 'Assembly'], parent)
-        self.__maps = {}  # Maps an address to the row in the table
-        self.__highlighted_row = None
 
     def load_program(self, program):
         """
         Loads an assembled MIPSProgram object into the table
         """
         self.reset_table()
-        self.__maps.clear()
         instrs = sorted(
             [line for line in program.program_lines if line.memory_addr],
             key=lambda p: p.memory_addr)
         for instr in instrs:
-            row = self.add_row(f'0x{instr.memory_addr:08x}', f'0x{instr.binary_instr:08x}',
-                               instr.clean_line, instr.assembly)
-            self.__maps[instr.memory_addr] = row
+            self.add_row(f'0x{instr.memory_addr:08x}', f'0x{instr.binary_instr:08x}',
+                         instr.clean_line, instr.assembly, map_=instr.memory_addr)
 
-    def highlight(self, addr: int):
-        """
-        Highlights the row where instruction at addr is located
-        """
-        row = self.__maps.get(addr)
-        if not row:
+    def update_highlight(self, pc):
+        row = self.get_row_from_map(pc)
+        if row is None:
             return
-        if self.__highlighted_row:
-            # Change background to default, (0,0) will never be highlighted so use that
-            self.__highlight_row(self.__highlighted_row, self.item(0, 0).background())
-        self.__highlight_row(row, QBrush(QColor(1, 1, 0)))
-
-    def __highlight_row(self, row, color):
-        for col in range(self.columnCount()):
-            self.item(row, col).setBackground(color)
+        self.highlight_row(row)
 
 
 class DataSegmentTable(QWidget):
@@ -132,7 +166,7 @@ class DataSegmentTable(QWidget):
 
     def load_memory(self):
         self.mem_table.reset_table()
-        mem = memory.dump(radix=self.val_radix)
+        mem = MEM.dump(radix=self.val_radix)
         for seg in mem.keys():
             if seg in self.shown_segments:
                 for addr in sorted(mem[seg].keys()):
@@ -140,7 +174,29 @@ class DataSegmentTable(QWidget):
                     self.mem_table.add_row(
                         self.fmt[self.addr_radix].format(addr),
                         vals[0], vals[1], vals[2], vals[3],
-                        self.fmt[self.val_radix].format(memory.read_word(addr)))
+                        self.fmt[self.val_radix].format(MEM.read_word(addr)))
+
+    def update_val(self, addr: int, byte_vals, word_val):
+        for row in range(1, self.mem_table.rowCount()):
+            if self.mem_table.item(row, 0).text() == str(addr):
+                # Update the row
+                for col, byte in enumerate(byte_vals, start=1):
+                    self.mem_table.item(row, col).setText(self.fmt[self.val_radix].format(byte))
+                self.mem_table.item(row, 5).setText(self.fmt[self.val_radix].format(word_val))
+                return
+            base = 16 if self.addr_radix == hex else 10
+            if int(self.mem_table.item(row, 0).text(), base) > addr:
+                # Insert new row
+                if MEM.get_segment(addr) in self.shown_segments:
+                    self.mem_table.insert_row(
+                        row,
+                        self.fmt[self.addr_radix].format(addr),
+                        self.fmt[self.val_radix].format(byte_vals[0]),
+                        self.fmt[self.val_radix].format(byte_vals[1]),
+                        self.fmt[self.val_radix].format(byte_vals[2]),
+                        self.fmt[self.val_radix].format(byte_vals[3]),
+                        self.fmt[self.val_radix].format(word_val)
+                    )
 
     def on_check(self, state, seg):
         if state == Qt.Checked:
@@ -189,8 +245,17 @@ class GPRTable(DataTable):
     def load_registers(self):
         self.reset_table()
         for reg_name, reg_addr in GPR.reg_names.items():
-            self.add_row(reg_name, reg_addr, 0)
-        self.add_row('PC', None, 0)
+            self.add_row(reg_name, reg_addr, 0, map_=reg_addr)
+        self.add_row('PC', None, 0, map_=32)
+
+    def update_register(self, addr: int, val: int):
+        row = self.get_row_from_map(addr)
+        if row is None:
+            return
+        self.update_row(row, addr, val, start=1)
+        if addr != 32:
+            # Don't highlight PC since it always updates
+            self.highlight_row(row)
 
 
 class CP0Table(DataTable):

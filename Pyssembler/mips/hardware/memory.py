@@ -1,7 +1,10 @@
 import json
 import os.path
 from ctypes import c_int32, c_uint32, c_uint16, c_int16, c_int8, c_uint8
-from typing import Callable
+import logging
+import threading
+
+__LOGGER__ = logging.getLogger('Pyssembler.MEM')
 
 from .exceptions import *
 from .types import DataType, MemorySize, MemorySegment
@@ -83,10 +86,12 @@ class _Memory(Observable):
     """
 
     def __init__(self):
-        self.config = _MemoryConfig()
+        super().__init__()
+        self.config: _MemoryConfig = _MemoryConfig()
         self.__mem = {}
         self.__instr_mem = {}
         self.heap_address = self.config.heap_base_addr
+        self.__lock = threading.Lock()
 
     def write(self, addr: int, val: int, size: int) -> None:
         """
@@ -239,6 +244,10 @@ class _Memory(Observable):
                     'Invalid Address', MIPSExceptionCodes.ADDRS, write_addr)
             byte_val = c_uint8(Integer.get_byte(val, num_bytes - i - 1)).value
             self.__mem[write_addr] = byte_val
+            boundary = self.get_word_boundary(addr)
+            word_val = self.read_word(boundary)
+            byte_vals = [self.read_byte(b) for b in range(boundary, self.get_word_boundary(addr, upper=True))]
+            self.notify_observers(boundary, byte_vals, word_val)  # Notify that a word address has been updated
 
     def __read_bytes(self, addr: int, num_bytes: int, signed=False) -> int:
         """
@@ -438,6 +447,40 @@ class _Memory(Observable):
         """
         return addr % (alignment // MemorySize.BYTE) == 0
 
+    def get_word_boundary(self, addr: int, upper=False):
+        """
+        Returns the upper/lower word boundary of an address
+
+        For example, 3 would return 0 or 4
+
+        Parameters
+        ----------
+        addr: int
+            The address to get the word boundary of
+        upper: bool, default=False
+            Returns the upper boundary if True, otherwise lower boundary
+        """
+        if not self.is_valid_addr(addr):
+            raise ValueError('Cannot get boundary of invalid address')
+        end = addr + 4 if upper else addr - 4
+        inc = 1 if upper else -1
+        for i in range(addr, end, inc):
+            if self.is_aligned(i, MemorySize.WORD):
+                return i
+
+    def reset(self, *segments):
+        """
+        Erases all of simulated memory
+
+        Or pass specific MemorySegments to be deleted
+        """
+        if len(segments) == 0:
+            # Default case, clear all of memory
+            self.__mem.clear()
+            return
+
+        self.__mem = {a: v for a, v in self.__mem.items() if self.get_segment(a) not in segments}
+
     def dump(self, radix=int) -> dict:
         """
         Dump the current state of memory
@@ -480,6 +523,10 @@ class _Memory(Observable):
                         dumped[seg][a].append(val)
                         break
         return dumped
+
+    def notify_observers(self, addr: int, byte_vals, word_val):
+        for observer in self.observers:
+            observer(addr, byte_vals, word_val)
 
 
 MEM = _Memory()

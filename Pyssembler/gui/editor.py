@@ -124,7 +124,7 @@ class EditorManager(QTabWidget):
         update = not editor.path
         editor.save()
         index = self.indexOf(editor)
-        if update:
+        if update and editor.path:
             self.setTabText(index, Path(editor.path).name)
         # If tab text ends with a *, remove the *
         if (name := self.tabText(index)).endswith('*'):

@@ -10,7 +10,7 @@ __BASIC_MNEMONICS__ = set(sorted([instr.mnemonic for instr in __BASIC_INSTRUCTIO
 __PSEUDO_INSTRUCTIONS__ = generate_pseudo_instructions()
 __PSEUDO_MNEMONICS__ = set(sorted([instr.mnemonic for instr in __PSEUDO_INSTRUCTIONS__]))
 __ALL_MNEMONICS__ = set(sorted(list(__BASIC_MNEMONICS__) + list(__PSEUDO_MNEMONICS__)))
-__LOGGER__ = logging.getLogger('Pyssembler.InstrSet')
+
 
 def get_basic_instruction_mnemonics() -> List[str]:
     """
@@ -24,8 +24,9 @@ def get_pseudo_instruction_mnemonics() -> List[str]:
     """
     Returns a list of implemented pseudo instruction mnemonics
     """
-    
+
     return list(__PSEUDO_MNEMONICS__)
+
 
 def get_mnemonics() -> List[str]:
     """
@@ -34,17 +35,20 @@ def get_mnemonics() -> List[str]:
 
     return list(__ALL_MNEMONICS__)
 
+
 def get_basic_instructions() -> List[BasicInstruction]:
     """
     Returns a list of all basic instruction objects
     """
     return __BASIC_INSTRUCTIONS__
 
+
 def get_pseudo_instructions() -> List[PseudoInstruction]:
     """
     Returns a list of all psuedo instruction objects
     """
     return __PSEUDO_INSTRUCTIONS__
+
 
 def get_basic_instruction(line: ProgramLine) -> BasicInstruction:
     """
@@ -65,6 +69,7 @@ def get_basic_instruction(line: ProgramLine) -> BasicInstruction:
         if instr.match(line):
             return instr
     return None
+
 
 def get_pseudo_instruction(line: ProgramLine) -> PseudoInstruction:
     """
@@ -94,6 +99,7 @@ def is_mnemonic(mnemonic: str) -> bool:
 
     return mnemonic in __BASIC_MNEMONICS__ or mnemonic in __PSEUDO_MNEMONICS__
 
+
 def is_basic_instruction(line: ProgramLine) -> bool:
     """
     Returns true if the mnemonic passed is an implemented instruction
@@ -104,6 +110,7 @@ def is_basic_instruction(line: ProgramLine) -> bool:
         The ProgramLine object to test
     """
     return not get_basic_instruction(line) is None
+
 
 def is_pseudo_instruction(line: ProgramLine) -> bool:
     """
@@ -136,10 +143,8 @@ def encode_instruction(line: ProgramLine, bstring=False) -> Union[int, str]:
     """
 
     # print('Attempting to Encode {}...'.format(line.tokens[0].value))
-    __LOGGER__.debug(f'Encoding {line.clean_line}...')
     instr_obj = get_basic_instruction(line)
     if instr_obj is None:
-        __LOGGER__.debug(f'Invalid instruction {line.tokens[0].value}')
         # print('\tCould not find instruction object')
         return None
     return instr_obj.encode(line, bstring)
@@ -161,9 +166,7 @@ def expand_pseudo_instruction(line: ProgramLine) -> list:
         The list of expanded basic instructions as strings
     """
     instr_obj = get_pseudo_instruction(line)
-    #print(line, repr(instr_obj))
+    # print(line, repr(instr_obj))
     if instr_obj is None:
         return None
     return instr_obj.expand(line)
-
-

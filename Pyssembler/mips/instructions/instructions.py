@@ -15,7 +15,6 @@ from ..errors import AssemblerError
 
 __PSEUDO_INSTRS_FILE__ = os.path.dirname(__file__)+'/pseudo_instructions.json'
 __BASIC_INSTRS_FILE__ = os.path.dirname(__file__)+'/instructions.json'
-__LOGGER__ = logging.getLogger('Pyssembler.Instruction')
 
 
 class InstructionType(Enum):
@@ -150,10 +149,8 @@ class BasicInstruction(Instruction):
         if not self.match_by_mnemonic(line.tokens[0].value):
             # line is not of this type
             return None
-        __LOGGER__.debug(f'Encoding {line.clean_line}...')
         if len(self.fmt_tokens) != len(line.tokens)-1:
             # number of tokens in line should match number of format tokens
-            __LOGGER__.debug('Unexpected number of tokens, cannot encode instruction!')
             return None
 
         values = {
@@ -167,7 +164,6 @@ class BasicInstruction(Instruction):
                 # fmt_token signifies a parenthesis or potential
                 # other non-value token, raise error if fmt_token != instr_token
                 if fmt_token.value != instr_token.value:
-                    __LOGGER__.debug('Invalid token encountered, raising AssemblerError')
                     raise AssemblerError(
                         filename=line.filename,
                         linenum=line.linenum,
@@ -192,8 +188,6 @@ class BasicInstruction(Instruction):
                 imm = 0
                 if instr_token.type == TokenType.LABEL:
                     # Instruction token is a label, convert it to immediate
-                    print(line.program.get_local_symbols(line))
-                    print(line.program.global_symbols)
                     if line.program.get_local_symbols(line).has(instr_token.value):
                         imm = line.program.get_local_symbols(
                             line).get(instr_token.value)

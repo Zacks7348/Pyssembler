@@ -18,7 +18,6 @@ class IDE(QWidget):
         layout.addWidget(self.editor_manager)
         self.setLayout(layout)
 
-    
     def new_file(self):
         """
         Opens a new editor
@@ -27,13 +26,13 @@ class IDE(QWidget):
         options |= QFileDialog.DontUseNativeDialog
 
         filename, _ = QFileDialog.getSaveFileName(
-            self, 
+            self,
             'New File',
             self.__root_path,
             'ASM Files (*.asm)',
             options=options)
         if filename:
-            open(filename, 'w').close() # Create file
+            open(filename, 'w').close()  # Create file
             self.editor_manager.open_editor(filename)
             return True
         return False
@@ -42,30 +41,30 @@ class IDE(QWidget):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
         filename, _ = QFileDialog.getOpenFileName(
-            self, 
-            'Open File', 
-            self.__root_path, 
+            self,
+            'Open File',
+            self.__root_path,
             'ASM Files (*.asm)',
             options=options)
         if filename:
             self.editor_manager.open_editor(filename)
             return True
         return False
-    
+
     def save_as(self):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
 
         filename, _ = QFileDialog.getSaveFileName(
-            self, 
+            self,
             'Save As',
             self.__root_path,
             'ASM Files (*.asm)',
             options=options)
         if filename:
-            open(filename, 'w').close() # Create file
+            open(filename, 'w').close()  # Create file
             self.editor_manager.save_editor_as(filename)
-    
+
     @property
     def current_editor(self):
         return self.editor_manager.current_editor
