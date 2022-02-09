@@ -38,14 +38,11 @@ class SettingsWindow(QDialog):
         layout.addLayout(button_layout)
         self.setLayout(layout)
 
-
-
-
     def save_settings(self):
         self.settings.beginGroup('editor')
         self.settings.setValue('font', self.tabs.chosen_font.family())
         self.settings.setValue('fontSize', self.tabs.chosen_font.pointSize())
-        self.settings.setValue('syntaxHighlighting', bool(self.tabs.shCombo.currentIndex()))
+        self.settings.setValue('syntaxHighlighting', self.tabs.shCombo.currentIndex())
         self.settings.endGroup()
         self.settings.sync()
         self.close()
@@ -54,7 +51,7 @@ class SettingsWindow(QDialog):
         self.settings.beginGroup('editor')
         self.settings.setValue('font', 'Courier')
         self.settings.setValue('fontSize', 14)
-        self.settings.setValue('syntaxHighlighting', True)
+        self.settings.setValue('syntaxHighlighting', 1)
         self.settings.endGroup()
         self.settings.sync()
         self.close()
@@ -79,7 +76,7 @@ class SettingsTabs(QTabWidget):
 
         self.shCombo = QComboBox()
         self.shCombo.addItems(['False', 'True'])
-        self.shCombo.setCurrentText(str(self.settings.value('editor/syntaxHighlighting', True)))
+        self.shCombo.setCurrentIndex(bool(self.settings.value('editor/syntaxHighlighting', defaultValue=1)))
         editor_form.addRow(QLabel('Syntax Highlighting'), self.shCombo)
 
         self.editor.setLayout(editor_form)
