@@ -2,7 +2,7 @@ import logging
 
 from Pyssembler.mips.hardware.types import MemorySize
 from ..hardware import GPR, MEM
-from .errors import SimulationExitException
+from .errors import ExitSimulation
 
 import globals
 if globals.GUI:
@@ -109,7 +109,7 @@ def __sbrk(sim):
 
 def __exit(sim):
     __LOGGER__.debug('Exiting...')
-    raise SimulationExitException()
+    raise ExitSimulation()
 
 
 def __print_char(sim):
@@ -127,7 +127,7 @@ def __read_char(sim):
 def __exit_with_value():
     __LOGGER__.debug('Exiting with value...')
     result, _, _ = __get_args()
-    raise SimulationExitException(result)
+    raise ExitSimulation(result)
 
 
 def simulate_syscall(code, sim):
