@@ -29,6 +29,7 @@ def setup_logging(logger_name: str, output_file: str = None, debug: bool = False
 
 def setup_parser():
     parser = argparse.ArgumentParser(description='Pyssembler - A MIPS32 IDE & Simulator')
+    parser.add_argument('-g', '--gui', action='store_true', help='Run in GUI mode')
     parser.add_argument('-m', '--main', type=str, help='The main MIPS32 assembly file, simulation starts at this file')
     parser.add_argument('-f', '--files', nargs='+', type=str, help='Additional MIPS32 assembly files')
     parser.add_argument('-l', '--log-file', type=str, help='Output file to save logs to')
@@ -41,8 +42,8 @@ def setup_parser():
 def main():
     parser = setup_parser()
     args = parser.parse_args()
-    log = setup_logging('Pyssembler', output_file=args.output_file, debug=args.debug)
-    if not args.main:
+    log = setup_logging('Pyssembler', output_file=args.log_file, debug=args.debug)
+    if args.gui:
         # Run in GUI mode
         log.info('Running in GUI mode...')
         run_application()
