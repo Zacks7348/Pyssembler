@@ -68,7 +68,7 @@ class Simulator():
         while True:
             try:
                 self.execute_instruction()
-            except SimulationExitException:
+            except ExitSimulation:
                 # Program stopped executing
                 return
 
@@ -87,7 +87,7 @@ class Simulator():
         instr = MEM.read_instruction(GPR.pc)
         if not instr:
             # No instruction at PC, program dropped off
-            raise SimulationExitException('Program Dropped Off')
+            raise ExitSimulation('Program Dropped Off')
         sim_func = get_sim_function_by_mnemonic(instr.tokens[0].value)
         try:
             sim_func(instr)
@@ -112,12 +112,12 @@ class Simulator():
             return
         if exception.exception_type == MIPSExceptionCodes.BKPT:
             # Halt simulation
-            raise SimulationExitException('break instruction executed')
+            raise ExitSimulation('break instruction executed')
         if exception.exception_type == MIPSExceptionCodes.TRAP:
             # Halt simulation
-            raise SimulationExitException('trap')
+            raise ExitSimulation('Program stopped with trap')
         if exception.exception_type == MIPSExceptionCodes.RI:
-            raise SimulationExitException('attempted to execute a reserved instruction')
+            raise ExitSimulation('attempted to execute a reserved instruction')
 
         # Set CP0 STATUS Register Exception Level bit
         CP0.write_status(exc_lvl=1)
@@ -134,7 +134,7 @@ class Simulator():
         if not MEM.read_instruction(MEM.config.ktext_base_addr):
             # No exception handler was written to memory
             # LOGGER.info(str(exception))
-            raise SimulationExitException(0)
+            raise ExitSimulation(f'Program stopped with exception code {exception.exception_type}')
 
     def link_input_request_signal(self, signal):
         self.__input_request_signal = signal
