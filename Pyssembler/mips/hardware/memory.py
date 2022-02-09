@@ -430,7 +430,7 @@ class _Memory(Observable):
         addr : int
             Address to test
         """
-        return self.config.data_base_addr <= addr < self.config.stack_heap_boundary
+        return self.config.data_base_addr <= addr <= self.config.stack_base_addr
 
     def is_aligned(self, addr: int, alignment: int) -> bool:
         """
