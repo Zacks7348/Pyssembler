@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import QTabWidget, QVBoxLayout, QWidget, QSplitter
 from Pyssembler.mips.errors import TokenizationError
 
 from Pyssembler.mips import Assembler, Simulator, MIPSProgram, AssemblerError
-from Pyssembler.mips.simulator import SimulationExitException
+from Pyssembler.mips.simulator import ExitSimulation
 from Pyssembler.mips.hardware import GPR, CP0
 
 from .tables import DataSegmentTable, TextSegmentTable, RegisterTable
@@ -213,13 +213,14 @@ class SimulationWorker(QObject):
     step_forward = pyqtSignal()
     step_backward = pyqtSignal()
 
-    def __init__(self):
+    def __init__(self, delay: float = 0):
         super().__init__()
         self.sim = Simulator()
         self.sim.link_input_request_signal(self.input_requested)
         self.sim.link_output_request_signal(self.output_requested)
 
         self.state = None
+        self.delay = delay
 
         self.play.connect(self.__play)
         self.stop.connect(self.__stop)
@@ -235,7 +236,7 @@ class SimulationWorker(QObject):
         self.__link_observers()
         self.sim.start(step=True)
         while True:
-            # time.sleep(1)  # Wait 1 second before each processing step
+            time.sleep(self.delay)
             if self.state == WorkerState.STOP:
                 break
             if self.state == WorkerState.PAUSE:
@@ -249,7 +250,7 @@ class SimulationWorker(QObject):
             if self.state in (WorkerState.PLAY, WorkerState.STEP_FORWARD):
                 try:
                     self.sim.execute_instruction()
-                except SimulationExitException as e:
+                except ExitSimulation as e:
                     # Program stopped executing
                     self.sim_finished.emit(e.result)
                     __SIM_LOGGER__.info('Program stopped executing, exiting sim thread...')
