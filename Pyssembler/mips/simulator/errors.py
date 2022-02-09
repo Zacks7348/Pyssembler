@@ -9,7 +9,7 @@ class SimulatorError(PyssemblerException):
     """
 
 
-class SimulationExitException(SimulatorError):
+class ExitSimulation(SimulatorError):
     """
     Basic Exception that causes the Simulator to exit
     """
