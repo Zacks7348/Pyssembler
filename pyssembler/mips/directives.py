@@ -1,7 +1,7 @@
 from collections import namedtuple
 from typing import Dict
 
-from pyssembler.mips.tokenizer import TokenType
+from pyssembler.mips.tokens import TokenType
 from pyssembler.mips.mips import Segment
 
 
@@ -114,7 +114,7 @@ TEXT_DIRECTIVE = Directive(
     '.text',
     '.text',
     'Declare the following statements are stored in Text memory segment',
-    (Segment.DATA, Segment.KDATA),
+    (Segment.DATA, Segment.KDATA, Segment.TEXT, Segment.KTEXT),
     []
 )
 WORD_DIRECTIVE = Directive(

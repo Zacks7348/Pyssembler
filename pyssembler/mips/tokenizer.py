@@ -1,10 +1,21 @@
-from enum import Enum, auto
+from __future__ import annotations
+import logging
 import re
 import string
-from typing import Any, List, Iterable
+from typing import List, Iterable, Union, TYPE_CHECKING
 
-from pyssembler.mips.hardware import integer
+from pyssembler.mips.directives import DIRECTIVES, INCLUDE_DIRECTIVE
+from pyssembler.mips.hardware import integer, REGISTERS
+from pyssembler.mips.instructions import instruction_set as instr_set
+from pyssembler.mips.tokens import Token, TokenType
+from pyssembler.utils import Location
 
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+__LOGGER__ = logging.getLogger(__name__)
 
 __REGEX__ = r'\n|#.+|".*"|\'.+\'|\$*\.?\w+|:|[^\S\r\n]|\S'
 __PATTERN__ = re.compile(__REGEX__)
@@ -16,69 +27,6 @@ __SPECIAL_CHARS__ = {'"': '\"', '\\': '\\', 'n': '\n',
 __COMMENT_CHAR__ = '#'
 
 __KEYWORDS__ = {}
-
-
-class TokenType(Enum):
-    REGISTER = auto()
-    MNEMONIC = auto()
-    IMMEDIATE = auto()
-    DIRECTIVE = auto()
-    COMMENT = auto()
-    LABEL = auto()
-    ASCII = auto()
-    CHAR = auto()
-    LEFT_P = auto()
-    RIGHT_P = auto()
-    COLON = auto()
-    COMMA = auto()
-    WHITESPACE = auto()
-    NEWLINE = auto()
-    UNKNOWN = auto()
-
-
-class Token:
-    def __init__(self, raw_text: str, value: Any, type_: TokenType,
-                 line: int = 0, line_char: int = 0, char: int = 0, filename: str = None):
-        self.raw_text = raw_text
-        self.value = value
-        self.type = type_
-        self.line = line
-        self.line_char = line_char
-        self.char = char
-        self.filename = filename
-
-    def length(self):
-        return len(self.raw_text)
-
-    def raw_length(self):
-        return len(bytearray(self.raw_text, 'utf-8'))
-
-    def __str__(self):
-        return f'Token(text={self.raw_text}, type={self.type})'
-
-    def __repr__(self):
-        return f'Token(text={repr(self.raw_text)}, type={self.type}, line={self.line}, char={self.line_char})'
-
-
-def register_keyword(keyword: str, token_type: TokenType):
-    """
-    Register a keyword as a specific token type
-    :param keyword: The keyword to associate
-    :param token_type: The TokenType of the keyword
-    """
-    if token_type not in __KEYWORDS__:
-        __KEYWORDS__[token_type] = set()
-    __KEYWORDS__[token_type].add(keyword)
-
-
-def register_keywords(keywords: Iterable[str], token_type: TokenType):
-    """
-    Register a list of keywords as a token type
-    :param keywords: The list of keywords to associate
-    :param token_type: The TokenType of the keywords
-    """
-    for keyword in keywords:
-        register_keyword(keyword, token_type)
 
 
 def _is_valid_symbol(raw_token: str) -> bool:
@@ -100,14 +48,7 @@ def _is_valid_symbol(raw_token: str) -> bool:
     return True
 
 
-def _search_keywords(candidate: str) -> TokenType:
-    for token_type, keywords in __KEYWORDS__.items():
-        if candidate in keywords:
-            return token_type
-    return None
-
-
-def _process_candidate(candidate: str, **kwargs) -> Token:
+def _process_candidate(candidate: str, location: Location) -> Token:
     symbols = {
         '(': TokenType.LEFT_P,
         ')': TokenType.RIGHT_P,
@@ -135,18 +76,23 @@ def _process_candidate(candidate: str, **kwargs) -> Token:
             processed_value = integer.from_string(candidate)
     elif candidate.startswith(__COMMENT_CHAR__):
         token_type = TokenType.COMMENT
-    elif (keyword_type := _search_keywords(candidate)) is not None:
-        token_type = keyword_type
+    elif candidate in DIRECTIVES:
+        token_type = TokenType.DIRECTIVE
+    elif candidate in instr_set.BASIC_INSTRUCTIONS:
+        token_type = TokenType.MNEMONIC
+    elif candidate in REGISTERS:
+        token_type = TokenType.REGISTER
     elif (i := integer.from_string(candidate)) is not None:
         token_type = TokenType.IMMEDIATE
         processed_value = i
     elif _is_valid_symbol(candidate):
         token_type = TokenType.LABEL
 
-    return Token(candidate, processed_value, token_type, **kwargs)
+    return Token(candidate, processed_value, token_type, location)
 
 
-def tokenize_text(text: str, line_offset: int = 0, char_offset: int = 0, filename: str = None) -> List[List[Token]]:
+def tokenize_text(text: str, line_offset: int = 0, char_offset: int = 0,
+                  filename: Union[str, Path] = None) -> List[List[Token]]:
     """
     Tokenize a string into a list of statements.
 
@@ -156,18 +102,15 @@ def tokenize_text(text: str, line_offset: int = 0, char_offset: int = 0, filenam
     :param filename: The file the text came from
     :return: A list of lines made up of tokens
     """
+    __LOGGER__.debug(f'Tokenizing text...')
     token_list = []
     statements = []
     line_cnt = line_offset
     line_char_cnt = 0
     char_cnt = char_offset
     for raw_token in __PATTERN__.findall(text):
-        token = _process_candidate(
-            raw_token,
-            line=line_cnt,
-            line_char=line_char_cnt,
-            char=char_cnt,
-            filename=filename)
+        loc = Location(filename, line_cnt, line_char_cnt, char_cnt)
+        token = _process_candidate(raw_token, loc)
         token_list.append(token)
         if token.type == TokenType.NEWLINE:
             line_cnt += 1
@@ -186,10 +129,14 @@ def tokenize_instr_format(text: str):
     token_list = []
     for raw_token in __PATTERN__.findall(text):
         if raw_token in ('rd', 'rs', 'rt'):
-            token_type = TokenType.REGISTER
+            token = Token(raw_token, raw_token, TokenType.REGISTER)
+        elif raw_token in ('immediate', 'offset', 'sel'):
+            token = Token(raw_token, raw_token, TokenType.IMMEDIATE)
         else:
-            token_type = TokenType.match(raw_token)
-        token_list.append(Token(raw_token, token_type))
+            token = _process_candidate(raw_token, None)
+
+        if token.type != TokenType.WHITESPACE:
+            token_list.append(token)
     return token_list
 
 

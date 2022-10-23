@@ -5,9 +5,8 @@ class SymbolTable:
     """
     Represents a MIPS symbol table
     """
-    def __init__(self, name: str):
+    def __init__(self):
         self._table = {}
-        self.name = name
 
     def has(self, symbol: str) -> bool:
         """
@@ -81,7 +80,7 @@ class SymbolTable:
         return len(self._table)
 
     def __str__(self):
-        res = f'SymbolTable {self.name}:\n'
+        res = f'SymbolTable:\n'
         for key, val in self._table.items():
             res += f'\t{key}: location={val["loc"]}, address={val["addr"]}\n'
         return res

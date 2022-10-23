@@ -1,17 +1,22 @@
 """
 main script of the Pyssembler project
+
+engine = MIPSEngine(architecture=MIPS_32BIT, MIPS_64BIT)
+
+engine.assemble
+
 """
-import logging
-
-from pyssembler.gui import run
+import argparse
 
 
-__LOGGER__ = logging.getLogger(__name__)
+def _get_args():
+    parser = argparse.ArgumentParser('Pyssembler')
+    parser.add_argument('main', type=str, help='Main MIPS file')
+    parser.add_argument('-d', '--debug', action='store_true', help='Enable debug logs')
 
 
 def main():
-    __LOGGER__.debug('Running...')
-    run()
+    pass
 
 
 if __name__ == '__main__':
