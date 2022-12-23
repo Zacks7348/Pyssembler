@@ -1,20 +1,21 @@
 """
 This file contains logic for handling signed/unsigned integers of a fixed
-number of bits. Python by design does not implement fixed-size data types
-due to its dynamic nature.
+number of bits.
 
-For usual sizes (2, 4, 8, 16, 32, ... bits) one could use the ctypes library,
-which provides c-type integers. However, there are cases where we would like
-to work with integers with 5 bits and other unusal sizes.
+Python 3 does not implement fixed-size integer types. Instead, all integers
+are considered signed integers of unlimited size. This file provides a way of
+working with "fixed-size" signed and unsigned integers using Python integers.
+
+Values are coerced into "fixed-sizes" by masking the true value to the correct
+bit length.
+
+Byte-endianness of integers is determined by the system this program is running on.
 """
-
-from pyssembler.mips.hardware import MemorySize
+import typing
 
 # ------------------------------------------------------------------------
 # Useful constants
 # ------------------------------------------------------------------------
-
-# Integers
 MAX_UINT64 = 0xFFFFFFFFFFFFFFFF  # 18,446,744,073,709,551,615
 MAX_INT64 = 0x7FFFFFFFFFFFFFFF  # 9,223,372,036,854,775,807
 MIN_INT64 = -0x8000000000000000  # -9,223,372,036,854,775,808
@@ -27,9 +28,20 @@ MAX_UINT16 = 0xFFFF  # 65,535
 MAX_INT16 = 0x7FFF  # 32,767
 MIN_INT16 = -0x8000  # -32,768
 
-MAX_UINT8 = 0xFF  # 258
+MAX_UINT8 = 0xFF  # 255
 MAX_INT8 = 0x7F  # 127
 MIN_INT8 = -0x80  # -128
+
+BIT = 1
+BYTE = 8
+HWORD = 16
+WORD = 32
+DWORD = 64
+
+BYTE_LENGTH_BYTES = BYTE // BYTE
+HWORD_LENGTH_BYTES = HWORD // BYTE
+WORD_LENGTH_BYTES = WORD // BYTE
+DWORD_LENGTH_BYTES = DWORD // BYTE
 
 
 # ------------------------------------------------------------------------
@@ -38,6 +50,7 @@ MIN_INT8 = -0x80  # -128
 def max_uint(size: int) -> int:
     """
     Returns the largest unsigned integer that can be stored with size bits
+
     :param size: The number of bits
     :return: max int
     """
@@ -47,6 +60,7 @@ def max_uint(size: int) -> int:
 def max_int(size: int) -> int:
     """
     Returns the largest signed integer that can be stored with size bits
+
     :param size: The number of bits
     :return: max int
     """
@@ -56,6 +70,7 @@ def max_int(size: int) -> int:
 def min_int(size: int) -> int:
     """
     Returns the smallest signed integer that can be stored with size bits
+
     :param size: The number of bits
     :return: max int
     """
@@ -68,6 +83,7 @@ def min_int(size: int) -> int:
 def set_bit(value: int, bit: int) -> int:
     """
     Set the ith bit in value
+
     :param value: The value to manipulate
     :param bit: The bit to set
     :return: The new integer
@@ -78,6 +94,7 @@ def set_bit(value: int, bit: int) -> int:
 def clear_bit(value: int, bit: int) -> int:
     """
     Clear the ith bit in value
+
     :param value: The value to manipulate
     :param bit: The bit to clear
     :return: The new integer
@@ -88,6 +105,7 @@ def clear_bit(value: int, bit: int) -> int:
 def invert_bit(value: int, bit: int) -> int:
     """
     Invert the ith bit in a value
+
     :param value: The value to manipulate
     :param bit: The bit to invert
     :return: The new integer
@@ -98,55 +116,64 @@ def invert_bit(value: int, bit: int) -> int:
 def change_bits(value: int, low: int, high: int, new_bits: int) -> int:
     """
     Change the bits in value[low:high+1] to the first n bits in new_bits
+
     :param value: The value to write new bits into
     :param low: Where to start writing new bits
     :param high: Where to stop writing new bits
     :param new_bits: The new bits to write
     :return: The new integer
     """
-    mask = 1
-    for bit in range(low, high+1):
-        if new_bits & mask:
-            value = set_bit(value, bit)
-        else:
-            value = clear_bit(value, bit)
+    for i in range(low, high):
+        bit = new_bits & 1
+        value = set_bit(value, i) if bit else clear_bit(value, i)
         new_bits >>= 1
     return value
-
-
-def get_bits(value: int, low: int, high: int) -> int:
-    """
-    Returns the bits located in value[low:high+1]
-    :param value: The value to get bits from
-    :param low: The low bit index
-    :param high: The high bit index
-    :return: int
-    """
-    mask = 0
-    for power in range(low, high+1):
-        mask += 2**power
-    return (value & mask) >> low
 
 
 def get_bit(value: int, bit: int) -> int:
     """
     Read a specific bit from a value
+
     :param value: The value to read
     :param bit: The bit to return
     :return: int
     """
-    return get_bits(value, bit, bit)
+    return (value >> bit) & 1
+
+
+def get_bits(value: int, low: int, high: int) -> int:
+    """
+    Returns the bits located in value[low:high+1]
+
+    :param value: The value to get bits from
+    :param low: The low bit index
+    :param high: The high bit index
+    :return: int
+    """
+    res = 0
+    for i, bit in enumerate(range(low, high)):
+        res |= (get_bit(value, bit) << i)
+    return res
 
 
 def get_byte(value: int, byte_num: int) -> int:
     """
     Read a specific byte from a value
+
     :param value: The value to read
     :param byte_num: The byte to read
     :return: int
     """
-    scale = byte_num * MemorySize.BYTE
-    return get_bits(value, scale, scale+MemorySize.BYTE-1)
+    scale = byte_num * 8
+    return get_bits(value, scale, scale + 8)
+
+
+def get_bytes(value: int, low: int, high: int) -> int:
+    res = 0
+    for i, byte in enumerate(range(low, high)):
+        res |= (get_byte(value, byte) << i * BYTE)
+
+    return res
 
 
 # ------------------------------------------------------------------------
@@ -155,6 +182,7 @@ def get_byte(value: int, byte_num: int) -> int:
 def to_uint(value: int, size: int = 32) -> int:
     """
     Return the value as an unsigned integer with size bits
+
     :param value: The value to convert
     :param size: The number of bits to represent the unsigned integer
     :return: unsigned int
@@ -173,6 +201,7 @@ def to_uint(value: int, size: int = 32) -> int:
 def to_int(value: int, size: int = 32) -> int:
     """
     Return the value as a signed integer with size bits
+
     :param value: The value to convert
     :param size: The number of bits to represent the integer
     :return: signed int
@@ -188,12 +217,40 @@ def to_int(value: int, size: int = 32) -> int:
         return value & mask
 
 
+def to_bytes(value: int, num_bytes: int) -> typing.List[int]:
+    """
+    Convert an integer to a list of bytes.
+
+    Byte-Endianness is determined by the system
+    """
+    return [get_byte(value, byte) for byte in reversed(range(num_bytes))]
+
+
+def from_bytes(int_bytes: typing.List[int], size: int = 32, signed=False) -> int:
+    """
+    Build an integer from a list of bytes. The size of the integer is
+    determined by the number of bytes passed in.
+
+    if signed is True, then a signed integer is returned
+
+    :param int_bytes: The list of bytes representing an integer
+    :param signed: If True returns a signed integer
+    :return: the represented int
+    """
+    res = 0
+    for i, byte in enumerate(reversed(int_bytes)):
+        res |= byte << (i * BYTE)
+
+    return to_int(res, size) if signed else to_uint(res, size)
+
+
 # ------------------------------------------------------------------------
 # String shenanigans
 # ------------------------------------------------------------------------
-def to_string(value: int, radix = int, size: int = 32, prefix: bool = False) -> str:
+def to_string(value: int, radix=int, size: int = 32, prefix: bool = False) -> str:
     """
     Represent the value as a string
+
     :param value: The value to convert
     :param radix: How to represent the value (bin, oct, int, hex)
     :param size:
@@ -201,20 +258,19 @@ def to_string(value: int, radix = int, size: int = 32, prefix: bool = False) -> 
     :return:
     """
     if radix == int:
-        return f'{value:0{size}d}'
+        return f'{value}'
     if radix == bin:
         return f'{"0b" if prefix else ""}{value:0{size}b}'
-    if radix == oct:
-        return f'{"0o" if prefix else ""}{value:0{size}o}'
     if radix == hex:
-        return f'{"0x" if prefix else ""}{value:0{size}x}'
+        return f'{"0x" if prefix else ""}{value:0{size//4}x}'
     raise ValueError(f'Invalid radix: {radix}')
 
 
 def from_string(value: str, signed: bool = True, size: int = 32) -> int:
     """
-    Try to convert the value in a string to an int
-    Supported strings are (1, 0b1, 0o1, 0x1, 1E+1)
+    Try to convert the value in a string to an int.
+    Supported strings are (1, 0b1, 0o1, 0x1, 1E+1, 'b').
+
     :param value: The string to convert
     :param signed: If True, return as a signed int (default=True)
     :param size: The number of bits to represent the integer
@@ -231,7 +287,6 @@ def from_string(value: str, signed: bool = True, size: int = 32) -> int:
         value = value.replace('-', '', 1)
     if value.startswith("'") and value.endswith("'"):
         # value should be a char
-        # value should be 'c' 3 chars
         if len(value) == 3:
             res = ord(value[1:2])
         else:
@@ -291,5 +346,4 @@ def from_string(value: str, signed: bool = True, size: int = 32) -> int:
 
 
 if __name__ == '__main__':
-    from ctypes import c_uint8
-    print(to_int(128, 8))
+    x = 1
