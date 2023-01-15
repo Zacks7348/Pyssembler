@@ -159,8 +159,8 @@ class MIPSCPU(LoggableMixin):
         # Coprocessor 3 Registers
         # NOT IMPLEMENTED - FPU for MIPS64 Architecture
 
-        for regiser in self._iter_registers():
-            self._register_name_map[regiser.name] = regiser
+        for register in self._iter_registers():
+            self._register_name_map[register.name] = register
 
         self._register_name_map[self._pc.name] = self._pc
 

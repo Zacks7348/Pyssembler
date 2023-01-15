@@ -26,10 +26,17 @@ class AddressErrorException(MIPSException):
     """
     MIPS Exception raised when an Address Error occurs
     """
+    pass
 
-    def __init__(self, message: str, exeception_type: int, addr: int) -> None:
-        self.address = addr
-        super().__init__(message+f' {self.address}', exeception_type)
+
+class MIPSAddressLoadError(AddressErrorException):
+    def __init__(self, addr: int):
+        super().__init__(f'Address Load Error: {addr}', MIPSExceptionCodes.ADDRL)
+
+
+class MIPSAddressStoreError(AddressErrorException):
+    def __init__(self, addr: int):
+        super().__init__(f'Address Store Error: {addr}', MIPSExceptionCodes.ADDRS)
 
 
 class SyscallException(MIPSException):

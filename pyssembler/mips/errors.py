@@ -1,5 +1,5 @@
 """
-This file contains custom exceptions implemented by Pyssembler
+This file contains custom exceptions implemented by pyssembler
 """
 from __future__ import annotations
 from typing import TYPE_CHECKING

@@ -125,7 +125,8 @@ class MIPSMemory:
         self._enable_heap_stack_boundary: bool = kwargs.pop('enable_heap_stack_boundary', True)
 
         self.mem = {}
-        self.instr_mem = {}
+        self.user_instrs = {}
+        self.kernel_instrs = {}
 
         self._heap_address = self.heap_start
 
@@ -166,7 +167,8 @@ class MIPSMemory:
         """
         if not segments:
             self.mem.clear()
-            self.instr_mem.clear()
+            self.user_instrs.clear()
+            return
 
         for addr in list(self.mem.keys()):
             addr_segment = self.get_segment(addr)
@@ -174,17 +176,66 @@ class MIPSMemory:
                 self.mem.pop(addr)
 
             if self.USER_TEXT_SEGMENT in segments:
-                self.instr_mem.clear()
+                self.user_instrs.clear()
 
-    def _read_bytes(self, addr: int, num_bytes: int, signed=False):
+    def read_word(self, addr: int, signed=False):
+        return self._read_bytes(addr, integer.WORD_LENGTH_BYTES, signed=signed)
+
+    def read_hword(self, addr: int, signed=False):
+        return self._read_bytes(addr, integer.HWORD_LENGTH_BYTES, signed=signed)
+
+    def read_byte(self, addr: int, signed=False):
+        return self._read_bytes(addr, integer.BYTE_LENGTH_BYTES, signed=signed)
+
+    def write_word(self, addr: int, i: int):
+        self._write_bytes(addr, i, integer.WORD_LENGTH_BYTES)
+
+    def write_hword(self, addr: int, i: int):
+        self._write_bytes(addr, i, integer.HWORD_LENGTH_BYTES)
+
+    def write_byte(self, addr: int, i: int):
+        self._write_bytes(addr, i, integer.BYTE_LENGTH_BYTES)
+
+    def _read_bytes(self, start_addr: int, num_bytes: int, signed=False) -> int:
         """
         Helper function to read bytes from memory starting at addr
         """
+        if not self.is_valid_address(start_addr):
+            raise ValueError(f'Invalid address {start_addr}')
 
-    def _write_bytes(self, addr: int, int_bytes: typing.List[int], downwards=False):
+        if self._force_align and not self.is_aligned(start_addr, num_bytes * integer.BYTE):
+            raise AddressErrorException('Address is not naturally aligned', start_addr, MIPSExceptionCodes.ADDRL)
+
+        if not self.in_stack_segment(start_addr):
+            addrs = range(start_addr, start_addr + num_bytes)
+        else:
+            addrs = range(start_addr, start_addr - num_bytes, -1)
+
+        return integer.from_bytes(
+            [self.mem.get(addr, 0) for addr in addrs],
+            num_bytes * integer.BYTE,
+            signed=signed
+        )
+
+    def _write_bytes(self, start_addr: int, i: int, num_bytes: int):
         """
-        Helper function to write bytes to memory. Bytes are written
+        Helper function to write bytes to memory.
         """
+        if not self.is_valid_address(start_addr):
+            raise ValueError(f'Invalid address {start_addr}')
+
+        if self._force_align and not self.is_aligned(start_addr, num_bytes * integer.BYTE):
+            raise AddressErrorException('Address is not naturally aligned', start_addr, MIPSExceptionCodes.ADDRS)
+
+        if not self.in_stack_segment(start_addr):
+            addrs = range(start_addr, start_addr + num_bytes)
+        else:
+            addrs = range(start_addr, start_addr - num_bytes, -1)
+
+        i_bytes = [integer.get_byte(i, byte) for byte in range(num_bytes)]
+
+        for addr, byte in zip(addrs, reversed(i_bytes)):
+            self.mem[addr] = byte
 
     def allocate_heap_bytes(self, num_bytes: int) -> int:
         if num_bytes < 0:
@@ -225,20 +276,20 @@ class MIPSMemory:
         if self.in_reserved_memory(addr):
             return self.RESERVED_SEGMENT
 
-    def is_aligned(self, addr: int, alignment: int) -> bool:
+    def is_aligned(self, addr: int, size: int) -> bool:
         """
         Returns True if addr is naturally aligned with the data size.
 
         Halfword accesses are aligned on even byte boundary (0, 2, 4...)
         Word accesses are aligned on a byte boundary divisible by four (0, 4, 8...)
         """
-        return addr % (alignment // MemorySize.BYTE) == 0
+        return addr % (size // MemorySize.BYTE) == 0
 
     def is_valid_address(self, addr: int) -> bool:
         """
         Returns True if addr is a valid 32-bit memory address
         """
-        if type(addr) is not int:
+        if not isinstance(addr, int):
             return False
 
         return self.MEMORY_START <= addr < self.MEMORY_LIMIT
