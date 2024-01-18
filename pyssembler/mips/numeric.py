@@ -11,7 +11,16 @@ bit length.
 
 Byte-endianness of integers is determined by the system this program is running on.
 """
+import struct
 import typing
+
+from . import constants
+
+PREFIXES = {
+    '0b': 2,
+    '0o': 8,
+    '0x': 16
+}
 
 # ------------------------------------------------------------------------
 # Useful constants
@@ -31,17 +40,6 @@ MIN_INT16 = -0x8000  # -32,768
 MAX_UINT8 = 0xFF  # 255
 MAX_INT8 = 0x7F  # 127
 MIN_INT8 = -0x80  # -128
-
-BIT = 1
-BYTE = 8
-HWORD = 16
-WORD = 32
-DWORD = 64
-
-BYTE_LENGTH_BYTES = BYTE // BYTE
-HWORD_LENGTH_BYTES = HWORD // BYTE
-WORD_LENGTH_BYTES = WORD // BYTE
-DWORD_LENGTH_BYTES = DWORD // BYTE
 
 
 # ------------------------------------------------------------------------
@@ -171,7 +169,7 @@ def get_byte(value: int, byte_num: int) -> int:
 def get_bytes(value: int, low: int, high: int) -> int:
     res = 0
     for i, byte in enumerate(range(low, high)):
-        res |= (get_byte(value, byte) << i * BYTE)
+        res |= (get_byte(value, byte) << i * constants.BYTE)
 
     return res
 
@@ -239,9 +237,27 @@ def from_bytes(int_bytes: typing.List[int], size: int = 32, signed=False) -> int
     """
     res = 0
     for i, byte in enumerate(reversed(int_bytes)):
-        res |= byte << (i * BYTE)
+        res |= byte << (i * constants.BYTE)
 
     return to_int(res, size) if signed else to_uint(res, size)
+
+
+def to_double(i: int) -> float:
+    return struct.unpack('d', struct.pack('q', i))[0]
+
+
+def to_float(i: int) -> float:
+    return struct.unpack('f', struct.pack('i', i))[0]
+
+
+def from_double(f: float, size: int = constants.WORD, signed: bool = False) -> int:
+    res = struct.unpack('q', struct.pack('d', f))[0]
+    return to_int(res, size=size) if signed else to_uint(res, size=size)
+
+
+def from_float(f: float,  size: int = constants.WORD, signed: bool = False) -> int:
+    res = struct.unpack('i', struct.pack('f', f))[0]
+    return to_int(res, size=size) if signed else to_uint(res, size=size)
 
 
 # ------------------------------------------------------------------------
@@ -266,7 +282,7 @@ def to_string(value: int, radix=int, size: int = 32, prefix: bool = False) -> st
     raise ValueError(f'Invalid radix: {radix}')
 
 
-def from_string(value: str, signed: bool = True, size: int = 32) -> int:
+def from_string(value: str, signed: bool = True, size: int = 32) -> typing.Union[int, float]:
     """
     Try to convert the value in a string to an int.
     Supported strings are (1, 0b1, 0o1, 0x1, 1E+1, 'b').
@@ -276,74 +292,31 @@ def from_string(value: str, signed: bool = True, size: int = 32) -> int:
     :param size: The number of bits to represent the integer
     :return: int
     """
-    if '.' in value:
-        # An integer cannot have a period
-        return None
-    negative = False
-    res = None
-    if value.startswith('-'):
-        # if value is an integer, it is negative
-        negative = True
-        value = value.replace('-', '', 1)
-    if value.startswith("'") and value.endswith("'"):
-        # value should be a char
-        if len(value) == 3:
-            res = ord(value[1:2])
-        else:
-            return None
-    elif value.startswith('0b'):
-        # value is a binary number
-        try:
-            res = int(value, 2)
-        except:
-            return None
-    elif value.startswith('0o'):
-        # value is an octal number
-        try:
-            res = int(value, 8)
-        except:
-            return None
-    elif value.startswith('0x'):
-        # value is a hex number
-        try:
-            res = int(value, 16)
-        except:
-            return None
-    elif value.isnumeric():
-        res = int(value)
-    elif 'e' in value or 'E' in value:
-        value = value.lower()
-        leading = ''
-        exp = ''
-        before_e = True
-        for c in value:
-            if before_e:
-                if c == 'e':
-                    before_e = False
-                    continue
-                if c.isnumeric() or c == '-':
-                    leading += c
-                else:
-                    return None
-            else:
-                if c.isnumeric() or c == '-':
-                    exp += c
-                elif c == '+':
-                    pass
-                else:
-                    return None
-        try:
-            res = int(leading) * (10 ** int(exp))
-        except:
-            return None
-    else:
-        return None
-    if negative:
-        res *= -1
-    if signed:
-        return to_int(res, size)
-    return to_uint(res, size)
+    try:
+        # This will work if value is an integer in any of these formats:
+        # 1, 0b1, 0o1, 0x1
+        return int(value, PREFIXES.get(value[:2], 10))
+    except:
+        pass
 
+    try:
+        # This will work if value is in any of these formats:
+        # 1.0, 1E+1, 1.2e-1
+        res = float(value)
+        return res if not float.is_integer(res) else int(res)
+    except:
+        pass
 
-if __name__ == '__main__':
-    x = 1
+    # Char literals
+    # Use eval() to get a single character from value. eval() should never
+    # be ran on untrusted input. To achieve trust we first check that value
+    # is surrounded by single quotes and has a length of 3 or 4. This ensures
+    # that value will be evaluated as a Python string.
+    if len(value) in {3, 4} and value[0] == value[-1] == "'":
+        try:
+            return ord(eval(value))
+        except:
+            pass
+
+    return None
+
