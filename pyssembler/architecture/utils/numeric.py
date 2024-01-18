@@ -9,12 +9,16 @@ working with "fixed-size" signed and unsigned integers using Python integers.
 Values are coerced into "fixed-sizes" by masking the true value to the correct
 bit length.
 
-Byte-endianness of integers is determined by the system this program is running on.
+Byte-endianness of integers is determined by the system this program is
+running on. This module uses nomenclature assuming little-endian byte order.
+This means "low" refers to the right-most bit and "high" refers to the
+left-most bit.
 """
 import struct
 import typing
 
 from . import constants
+from .str_utils import process_escape_chars
 
 PREFIXES = {
     '0b': 2,
@@ -46,8 +50,7 @@ MIN_INT8 = -0x80  # -128
 # Calculating max/min of variable-sized integers
 # ------------------------------------------------------------------------
 def max_uint(size: int) -> int:
-    """
-    Returns the largest unsigned integer that can be stored with size bits
+    """Returns the largest unsigned integer that can be stored with size bits.
 
     :param size: The number of bits
     :return: max int
@@ -56,8 +59,7 @@ def max_uint(size: int) -> int:
 
 
 def max_int(size: int) -> int:
-    """
-    Returns the largest signed integer that can be stored with size bits
+    """Returns the largest signed integer that can be stored with size bits.
 
     :param size: The number of bits
     :return: max int
@@ -66,8 +68,7 @@ def max_int(size: int) -> int:
 
 
 def min_int(size: int) -> int:
-    """
-    Returns the smallest signed integer that can be stored with size bits
+    """Returns the smallest signed integer that can be stored with size bits.
 
     :param size: The number of bits
     :return: max int
@@ -75,12 +76,27 @@ def min_int(size: int) -> int:
     return (2 ** size / 2) * -1
 
 
+def detect_overflow(operand1: int, operand2: int, result: int) -> bool:
+    """Returns True if addition of two operands resulted in an overflow.
+
+    Overflow has occurred if one of the following is True:
+        1. Two positive integers resulted in a negative number.
+        2. Two negative integers resulted in a positive number.
+    """
+    if operand1 < 0 and operand2 < 0 and result > 0:
+        return True
+
+    if operand1 > 0 and operand2 > 0 and result < 0:
+        return True
+
+    return False
+
+
 # ------------------------------------------------------------------------
 # Bit manipulation
 # ------------------------------------------------------------------------
 def set_bit(value: int, bit: int) -> int:
-    """
-    Set the ith bit in value
+    """Set the ith bit in value.
 
     :param value: The value to manipulate
     :param bit: The bit to set
@@ -90,8 +106,7 @@ def set_bit(value: int, bit: int) -> int:
 
 
 def clear_bit(value: int, bit: int) -> int:
-    """
-    Clear the ith bit in value
+    """Clear the ith bit in value.
 
     :param value: The value to manipulate
     :param bit: The bit to clear
@@ -101,8 +116,7 @@ def clear_bit(value: int, bit: int) -> int:
 
 
 def invert_bit(value: int, bit: int) -> int:
-    """
-    Invert the ith bit in a value
+    """Invert the ith bit in a value.
 
     :param value: The value to manipulate
     :param bit: The bit to invert
@@ -111,9 +125,8 @@ def invert_bit(value: int, bit: int) -> int:
     return value ^ (1 << bit)
 
 
-def change_bits(value: int, low: int, high: int, new_bits: int) -> int:
-    """
-    Change the bits in value[low:high+1] to the first n bits in new_bits
+def write_bits(value: int, low: int, high: int, new_bits: int) -> int:
+    """Change the bits in value[low:high+1] to the first n bits in new_bits.
 
     :param value: The value to write new bits into
     :param low: Where to start writing new bits
@@ -129,8 +142,7 @@ def change_bits(value: int, low: int, high: int, new_bits: int) -> int:
 
 
 def get_bit(value: int, bit: int) -> int:
-    """
-    Read a specific bit from a value
+    """Read a specific bit from a value.
 
     :param value: The value to read
     :param bit: The bit to return
@@ -140,8 +152,7 @@ def get_bit(value: int, bit: int) -> int:
 
 
 def get_bits(value: int, low: int, high: int) -> int:
-    """
-    Returns the bits located in value[low:high+1]
+    """Returns the bits located in value[low:high+1].
 
     :param value: The value to get bits from
     :param low: The low bit index
@@ -155,8 +166,7 @@ def get_bits(value: int, low: int, high: int) -> int:
 
 
 def get_byte(value: int, byte_num: int) -> int:
-    """
-    Read a specific byte from a value
+    """Read a specific byte from a value.
 
     :param value: The value to read
     :param byte_num: The byte to read
@@ -172,6 +182,10 @@ def get_bytes(value: int, low: int, high: int) -> int:
         res |= (get_byte(value, byte) << i * constants.BYTE)
 
     return res
+
+
+def generate_allow_all_mask(bits: int):
+    return (1 << bits) - 1
 
 
 # ------------------------------------------------------------------------
@@ -216,15 +230,14 @@ def to_int(value: int, size: int = 32) -> int:
 
 
 def to_bytes(value: int, num_bytes: int) -> typing.List[int]:
-    """
-    Convert an integer to a list of bytes.
+    """Convert an integer to a list of bytes.
 
-    Byte-Endianness is determined by the system
+    Byte-Endianness is determined by the system.
     """
     return [get_byte(value, byte) for byte in reversed(range(num_bytes))]
 
 
-def from_bytes(int_bytes: typing.List[int], size: int = 32, signed=False) -> int:
+def from_bytes(int_bytes: typing.List[int], size: int = None, signed=False) -> int:
     """
     Build an integer from a list of bytes. The size of the integer is
     determined by the number of bytes passed in.
@@ -235,6 +248,9 @@ def from_bytes(int_bytes: typing.List[int], size: int = 32, signed=False) -> int
     :param signed: If True returns a signed integer
     :return: the represented int
     """
+    if size is None:
+        size = len(int_bytes) * 8
+
     res = 0
     for i, byte in enumerate(reversed(int_bytes)):
         res |= byte << (i * constants.BYTE)
@@ -255,7 +271,7 @@ def from_double(f: float, size: int = constants.WORD, signed: bool = False) -> i
     return to_int(res, size=size) if signed else to_uint(res, size=size)
 
 
-def from_float(f: float,  size: int = constants.WORD, signed: bool = False) -> int:
+def from_float(f: float, size: int = constants.WORD, signed: bool = False) -> int:
     res = struct.unpack('i', struct.pack('f', f))[0]
     return to_int(res, size=size) if signed else to_uint(res, size=size)
 
@@ -278,7 +294,7 @@ def to_string(value: int, radix=int, size: int = 32, prefix: bool = False) -> st
     if radix == bin:
         return f'{"0b" if prefix else ""}{value:0{size}b}'
     if radix == hex:
-        return f'{"0x" if prefix else ""}{value:0{size//4}x}'
+        return f'{"0x" if prefix else ""}{value:0{size // 4}x}'
     raise ValueError(f'Invalid radix: {radix}')
 
 
@@ -292,31 +308,28 @@ def from_string(value: str, signed: bool = True, size: int = 32) -> typing.Union
     :param size: The number of bits to represent the integer
     :return: int
     """
+
+    # Try casting directly as an int
     try:
         # This will work if value is an integer in any of these formats:
         # 1, 0b1, 0o1, 0x1
         return int(value, PREFIXES.get(value[:2], 10))
-    except:
+    except Exception:
         pass
 
+    # Try casting directly as a float
     try:
         # This will work if value is in any of these formats:
         # 1.0, 1E+1, 1.2e-1
         res = float(value)
         return res if not float.is_integer(res) else int(res)
-    except:
+    except Exception:
         pass
 
-    # Char literals
-    # Use eval() to get a single character from value. eval() should never
-    # be ran on untrusted input. To achieve trust we first check that value
-    # is surrounded by single quotes and has a length of 3 or 4. This ensures
-    # that value will be evaluated as a Python string.
-    if len(value) in {3, 4} and value[0] == value[-1] == "'":
-        try:
-            return ord(eval(value))
-        except:
-            pass
+    # Try decoding as UTF-8
+    try:
+        return ord(process_escape_chars(value))
+    except Exception:
+        pass
 
     return None
-

@@ -1,15 +1,29 @@
 from pathlib import Path
-from typing import List
+from typing import NamedTuple
 
 
-class ASMFile:
+class Source(NamedTuple):
+    asm_file: 'AssemblyFile'
+    line_num: int
+    line_char: int
+    char_num: int
+
+    def __str__(self):
+        return f'{self.asm_file}({self.line_num}:{self.line_char})'
+
+
+class AssemblyFile:
     def __init__(self, path: Path):
         path = Path(path).resolve()
         if not path.exists():
-            raise ValueError(f'ASM file {path} does not exist')
+            raise ValueError(f'Assembly file {path} does not exist')
         self.path = Path(path).resolve()
         self._text: str = None
         self._last_modified: int = -1
+
+    @property
+    def name(self):
+        return self.path.name
 
     def text(self, cache=True):
         last_modified = self.path.stat().st_mtime
@@ -28,13 +42,5 @@ class ASMFile:
     def __hash__(self):
         return hash(self.path)
 
-
-class MIPSProgram:
-    """
-    Represents a MIPS program
-    """
-    def __init__(self, asm_files: List[Path], exception_handler: Path = None):
-        self.asm_files: List[ASMFile] = [ASMFile(asm) for asm in asm_files]
-        self.exception_handler: ASMFile = None
-        if exception_handler is not None:
-            self.exception_handler = ASMFile(exception_handler)
+    def __str__(self):
+        return str(self.path)
