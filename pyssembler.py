@@ -1,28 +1,26 @@
+"""Main script of the pyssembler project
+
+TODO: NOT IMPLEMENTED. USING AS TEST DRIVER
 """
-main script of the pyssembler project
+from pathlib import Path
 
-engine = MIPSEngine(architecture=MIPS_32BIT, MIPS_64BIT)
-
-engine.assemble
-
-"""
-import argparse
-from pyssembler.mips.hardware import MIPSMemory, integer
-
-
-def _get_args():
-    parser = argparse.ArgumentParser('pyssembler')
-    parser.add_argument('main', type=str, help='Main MIPS file')
-    parser.add_argument('-d', '--debug', action='store_true', help='Enable debug logs')
+from pyssembler.architecture.core import AssemblyFile
+from pyssembler.architecture.mips.mips32 import MIPS32CPU
+from pyssembler.architecture.mips.common.mips_program import MIPSProgram
 
 
 def main():
-    mem = MIPSMemory()
+    cpu = MIPS32CPU(delay_slots=True)
+    program = MIPSProgram(
+        src_files=[
+            AssemblyFile(Path(__file__).parent / 'pyssembler' / 'work' / 'mips_test.asm')
+        ]
+    )
 
-    mem.write_hword(0, 1)
-    word = mem.read_word(0)
+    cpu.load_program_to_memory(program)
+    cpu.execute()
 
-    print(word, bin(word))
+    x=1
 
 
 if __name__ == '__main__':
