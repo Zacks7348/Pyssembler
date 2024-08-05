@@ -1,11 +1,14 @@
+import logging
+
+__all__ = ['PYSSEMBLER_ROOT_LOGGER']
+
+
+PYSSEMBLER_ROOT_LOGGER = logging.getLogger(__name__)
+
+
 def __init_logging():
-    import logging
-
     # Initialize logging
-    logging.getLogger(__name__).addHandler(logging.NullHandler())
-
-    # For debugging purposes
-    logging.basicConfig(level=logging.DEBUG)
+    PYSSEMBLER_ROOT_LOGGER.addHandler(logging.NullHandler())
 
 
 __init_logging()
